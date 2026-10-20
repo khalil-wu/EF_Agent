@@ -16,7 +16,7 @@ npm run build
 
 POST 发送与 GET 续接使用同一个 SSE 消费器。快照先恢复持久消息，再消费 `live.events`，从 `live.run_id/live.sequence` 继续 GET 订阅；切换会话会取消客户端连接，不中断服务端任务。旧游标 409 时重新读取快照。真实的失败和用户停止保留已输出文本。
 
-上游 Chat Completions 不能在第一个 token 前确定公开文本属于过程还是最终答案。UI 明确使用 pending 状态连续展示；工具调用确定后更新 commentary，完成后确定 final_answer/interrupted。私有 reasoning 不在公开 SSE 中。同步 Python 工具目前提供真实开始、运行和结束事件，不虚构百分比或 stdout 流。
+上游 Chat Completions 不能在第一个 token 前确定正文属于过程还是最终答案。UI 使用 pending 状态连续展示；工具调用确定后更新 commentary，完成后确定 final_answer/interrupted。接口返回的 reasoning_content 通过独立 reasoning_delta 事件流式展示，界面只保留最新 600 字符的三行预览，停更 5 秒后淡出；过期事件在续接时不重放到界面。推理文字不写入对话消息、导出回复或模型上下文。同步 Python 工具提供真实开始、运行和结束事件。
 
 模型失败或用户停止会立即结束本轮文字和工具进度；`session_saved` 负责持久化结束，不延长生成状态。首个回复 token 前失败的会话重新打开时仍保留失败卡片；用户重试后，新请求独立显示真实生成进度。
 

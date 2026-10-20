@@ -354,6 +354,10 @@ main:has(#empty) .scroll-latest{display:none}
 .upload-progress{padding:3px 7px 7px;font-size:0.75rem;color:var(--md-on-surface-variant)}
 
 .active-status,.waiting-status{display:flex;align-items:center;gap:8px;margin:12px 0 3px;color:var(--md-on-surface-variant);font:13px/1.5 var(--font)}
+.reasoning-preview{margin:10px 0 12px;color:var(--md-on-surface-variant);font:13px/1.65 var(--font);opacity:1;transition:opacity 200ms ease}
+.reasoning-preview.is-fading{opacity:0}
+.reasoning-label{display:block;margin-bottom:3px;font-size:11px;opacity:.75}
+.reasoning-text{max-height:4.95em;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}
 .working-dot{width:6px;height:6px;background:currentColor;border-radius:50%;flex:none;animation:pulse 1.5s ease infinite}
 .active-status>.ms{width:15px;height:15px;animation:spin 1.4s linear infinite}
 .waiting-status>.ms{width:15px;height:15px}

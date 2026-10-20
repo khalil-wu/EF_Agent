@@ -413,7 +413,7 @@ func requestMessages(cfg Config, s *Session, system string, resuming bool) []llm
 }
 
 // Public progress is model-authored content grounded in the current task and completed tools.
-// Provider reasoning remains private; the UI receives only the normal commentary stream.
+// Provider-supplied reasoning has its own transient stream, separate from conversation text.
 func publicProgressContext(s *Session) string {
 	planVisible := false
 	for i := len(s.Messages) - 1; i >= 0; i-- {
@@ -685,6 +685,7 @@ func streamTurn(ctx context.Context, c *llm.Client, msgs []llm.Message, tools []
 				thinking = true
 				emit(Event{Type: "model_activity", Timestamp: time.Now(), Phase: "thinking"})
 			}
+			emit(Event{Type: "reasoning_delta", Timestamp: time.Now(), Text: ev.Text})
 		case "tool_call_delta":
 			if len(order) == 0 {
 				emit(Event{Type: "message_phase", Timestamp: time.Now(), Phase: "commentary"})

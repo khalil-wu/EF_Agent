@@ -7,6 +7,28 @@ const turns=(store:Store)=>store.getSnapshot().rows.filter((row):row is Turn=>ro
 const entry=(store:Store,id:string)=>turns(store).flatMap(row=>row.entries).find(item=>item.id===id)!;
 const replay=(store:Store,events:Event[])=>events.forEach(store.apply);
 
+test('provider reasoning stays transient, follows its message across steering and ignores expired replay',()=>{
+  const store=createTranscriptStore(),ts=new Date().toISOString();
+  store.addTurn('first');store.apply({type:'message_started',message_id:'reason-first'});
+  const before=store.getSnapshot().contentVersion;
+  store.apply({type:'reasoning_delta',message_id:'reason-first',text:'先核对通道。',ts});
+  store.apply({type:'reasoning_delta',message_id:'reason-first',text:'再检查工频。',ts});
+  assert.equal(turns(store)[0].reasoning?.text,'先核对通道。再检查工频。');
+  assert.equal((entry(store,'reason-first') as Message).text,'','reasoning is not conversation prose');
+  assert.equal(store.getSnapshot().contentVersion,before,'transient progress does not request page scrolling');
+  store.addUser({text:'另一个问题'});store.addTurn('second');
+  store.apply({type:'message_started',message_id:'reason-second'});
+  store.apply({type:'reasoning_delta',message_id:'reason-first',text:'旧轮补充。',ts});
+  assert.match(turns(store)[0].reasoning!.text,/旧轮补充。$/);
+  assert.equal(turns(store)[1].reasoning,undefined);
+  store.apply({type:'reasoning_delta',message_id:'reason-second',text:'过期内容',ts:new Date(Date.now()-10000).toISOString()});
+  assert.equal(turns(store)[1].reasoning,undefined);
+  store.apply({type:'reasoning_delta',message_id:'reason-second',text:'新的推理。'.repeat(300),ts});
+  assert.ok(turns(store)[1].reasoning!.text.length<1000,'a long trace has a bounded recent preview');
+  store.hydrate({messages:[{role:'assistant',content:'最终结果',message_id:'saved'}],running:false});
+  assert.equal(turns(store)[0].reasoning,undefined,'durable history does not restore transient text');
+});
+
 test('a rejected truncated call survives live replay and history hydration without parsing its raw text',()=>{
   const raw='{"code":"'+'x'.repeat(3177),error='模型返回的工具参数不完整，本次未执行。';
   const rejected={status:'error',error:{code:'bad_args',message:error}};

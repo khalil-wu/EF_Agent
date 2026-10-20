@@ -30,7 +30,7 @@ func TestAnalysisRequestsGuidePublicPlansAndObservedProgress(t *testing.T) {
 			if !strings.Contains(latest, "第一批分析工具调用前") || !strings.Contains(latest, "公开工作计划") {
 				t.Errorf("initial request has no concrete public planning guidance: %s", latest)
 			}
-			fmt.Fprint(w, sse(`{"choices":[{"delta":{"reasoning_content":"PRIVATE_REVIEW"}}]}`,
+			fmt.Fprint(w, sse(`{"choices":[{"delta":{"reasoning_content":"PROVIDER_REVIEW"}}]}`,
 				`{"choices":[{"delta":{"content":"我先分解 ICA 成分，再比较处理前后的波形。","tool_calls":[{"index":0,"id":"ica","function":{"name":"clean_artifacts","arguments":"{\"source_id\":\"sig_test\",\"method\":\"ica_iclabel\"}"}}]}}]}`))
 		case 1:
 			if !strings.Contains(latest, "一项具体发现") || !strings.Contains(latest, "下一步") {
@@ -53,8 +53,8 @@ func TestAnalysisRequestsGuidePublicPlansAndObservedProgress(t *testing.T) {
 	}
 	plan, execution := -1, -1
 	for i, event := range events {
-		if strings.Contains(event.Text, "PRIVATE_REVIEW") {
-			t.Fatalf("provider reasoning reached public progress: %+v", event)
+		if strings.Contains(event.Text, "PROVIDER_REVIEW") && event.Type != "reasoning_delta" {
+			t.Fatalf("provider reasoning was mixed into the conversation: %+v", event)
 		}
 		if event.Type == "message_delta" && strings.Contains(event.Text, "我先分解") {
 			plan = i

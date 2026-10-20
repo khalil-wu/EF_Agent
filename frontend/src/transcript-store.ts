@@ -1,8 +1,10 @@
 export type Phase = 'pending' | 'commentary' | 'answer' | 'partial';
 export type Message = {type:'message';id:string;text:string;phase:Phase;done:boolean};
 export type Progress = {stage:string;label:string;detail:string;ts?:string};
+export const REASONING_PREVIEW_MS=5000;
+export type ReasoningPreview = {messageId:string;text:string;updatedAt:number};
 export type Tool = {type:'tool';id:string;name:string;args:any;status:'preparing'|'running'|'done'|'error'|'interrupted';result?:any;progress?:Progress[]};
-export type Turn = {type:'turn';id:string;entries:(Message|Tool)[];artifacts:string[];running:boolean;open?:boolean;waiting:boolean;stopped:boolean;error?:string;activity?:'thinking';startedAt?:number;finishedAt?:number};
+export type Turn = {type:'turn';id:string;entries:(Message|Tool)[];artifacts:string[];running:boolean;open?:boolean;waiting:boolean;stopped:boolean;error?:string;activity?:'thinking';reasoning?:ReasoningPreview;startedAt?:number;finishedAt?:number};
 export type FileReference = {workspace_id?:string;manifest_id?:string;path?:string;name:string;kind:string;excluded?:boolean};
 export type User = {type:'user';id:string;text:string;attachments:{id:string;name:string;modality:string}[];references:FileReference[];questions:string[]};
 export type Row = User|Turn;
@@ -32,6 +34,13 @@ export function createTranscriptStore(){
       case 'agent_start':case 'turn_start':{const active=turn();update(active.id,row=>({...row,running:true}));break}
       case 'message_started':message(event.message_id!,'','pending',false);break;
       case 'model_activity':{const active=owner(event.message_id!)||turn();update(active.id,row=>({...row,activity:'thinking'}));break}
+      case 'reasoning_delta':{
+        const updatedAt=Date.parse(event.ts);
+        if(Date.now()-updatedAt>=REASONING_PREVIEW_MS)break;
+        const active=owner(event.message_id!)!;
+        update(active.id,row=>({...row,reasoning:{messageId:event.message_id!,text:((row.reasoning&&row.reasoning.messageId===event.message_id&&updatedAt-row.reasoning.updatedAt<REASONING_PREVIEW_MS?row.reasoning.text:'')+event.text!).slice(-600),updatedAt}}),false);
+        break;
+      }
       case 'message_delta':{const item=owner(event.message_id!)!.entries.find(entry=>entry.id===event.message_id) as Message;message(item.id,item.text+event.text!,item.phase,false);break}
       case 'message_phase':case 'message_completed':{const item=owner(event.message_id!)!.entries.find(entry=>entry.id===event.message_id) as Message;message(item.id,item.text,phase(event.phase!),event.type==='message_completed');break}
       case 'tool_call_started':tool(event.tool_call_id!,event.tool_name!,{},'preparing',undefined,event.message_id);break;

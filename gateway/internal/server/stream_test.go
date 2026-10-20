@@ -27,7 +27,7 @@ func TestLiveResumeIncludesPartialAndReplaysEveryEventAfterTheSnapshot(t *testin
 	middle, finish := make(chan struct{}), make(chan struct{})
 	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"PRIVATE_REVIEW\",\"content\":\"alpha\"}}]}\n\n")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"PROVIDER_REVIEW\",\"content\":\"alpha\"}}]}\n\n")
 		w.(http.Flusher).Flush()
 		select {
 		case <-middle:
@@ -82,15 +82,19 @@ func TestLiveResumeIncludesPartialAndReplaysEveryEventAfterTheSnapshot(t *testin
 		t.Fatal(err)
 	}
 	partial := ""
+	reasoning := ""
 	messageID := ""
 	for _, event := range snapshot.Live.Events {
+		if event.Type == "reasoning_delta" {
+			reasoning += event.Text
+		}
 		if event.Type == "message_delta" {
 			partial += event.Text
 			messageID = event.MessageID
 		}
 	}
-	if !snapshot.Running || partial != "alpha" || messageID == "" || strings.Contains(view.Body.String(), "PRIVATE_REVIEW") {
-		t.Fatalf("snapshot did not contain only the public partial: %s", view.Body.String())
+	if !snapshot.Running || partial != "alpha" || messageID == "" || reasoning != "PROVIDER_REVIEW" {
+		t.Fatalf("snapshot did not preserve separate reasoning and answer streams: %s", view.Body.String())
 	}
 	// The next token intentionally lands after the snapshot and before subscription.
 	close(middle)
@@ -139,11 +143,14 @@ func TestLiveResumeIncludesPartialAndReplaysEveryEventAfterTheSnapshot(t *testin
 	}
 	select {
 	case post := <-postDone:
-		if strings.Contains(post.Body.String(), "PRIVATE_REVIEW") {
-			t.Fatal("private reasoning leaked through the original stream")
+		if !strings.Contains(post.Body.String(), "PROVIDER_REVIEW") {
+			t.Fatal("provider reasoning did not reach the original stream")
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("model request did not finish")
+	}
+	if final := request(t, h, "GET", "/sessions/"+id, ""); strings.Contains(final.Body.String(), "PROVIDER_REVIEW") {
+		t.Fatal("completed history retained expired reasoning")
 	}
 	if stale := request(t, h, "GET", "/sessions/"+id+"/events?run_id=run_previous&after=0", ""); stale.Code != 409 {
 		t.Fatal("a different run accepted the old cursor")

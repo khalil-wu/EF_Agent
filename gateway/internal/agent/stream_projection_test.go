@@ -2,15 +2,16 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"eegagent/gateway/internal/contracts"
 )
 
-func TestPublicMessageLifecycleStreamsAndKeepsPrivateReasoningOffTheWire(t *testing.T) {
+func TestMessageLifecycleStreamsReasoningSeparatelyFromConversationText(t *testing.T) {
 	client := fakeLLM(t, []string{
-		sse(`{"choices":[{"delta":{"reasoning_content":"PRIVATE_REVIEW"}}]}`,
-			`{"choices":[{"delta":{"reasoning_content":"PRIVATE_MORE"}}]}`,
+		sse(`{"choices":[{"delta":{"reasoning_content":"PROVIDER_REVIEW"}}]}`,
+			`{"choices":[{"delta":{"reasoning_content":"PROVIDER_MORE"}}]}`,
 			`{"choices":[{"delta":{"content":"我先"}}]}`,
 			`{"choices":[{"delta":{"content":"检查记录。"}}]}`,
 			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"inspect_record","arguments":"{"}}]}}]}`,
@@ -28,11 +29,14 @@ func TestPublicMessageLifecycleStreamsAndKeepsPrivateReasoningOffTheWire(t *test
 	started, deltas, completed := map[string]int{}, map[string]int{}, map[string]string{}
 	toolPrepared, toolExecuted := -1, -1
 	thinkingEvents := 0
+	reasoning := ""
 	for index, event := range events {
-		if event.Type == "reasoning_delta" || event.Text == "PRIVATE_REVIEW" {
-			t.Fatalf("private reasoning reached the public event stream: %+v", event)
-		}
 		switch event.Type {
+		case "reasoning_delta":
+			if started[event.MessageID] != 1 || event.Timestamp.IsZero() || toolExecuted >= 0 {
+				t.Fatalf("reasoning lost its identity, expiry timestamp or streaming order: %+v", event)
+			}
+			reasoning += event.Text
 		case "model_activity":
 			thinkingEvents++
 			if event.Phase != "thinking" || event.Text != "" || started[event.MessageID] != 1 {
@@ -69,8 +73,14 @@ func TestPublicMessageLifecycleStreamsAndKeepsPrivateReasoningOffTheWire(t *test
 	if thinkingEvents != 1 {
 		t.Fatalf("expected one thinking phase, got %d", thinkingEvents)
 	}
+	if reasoning != "PROVIDER_REVIEWPROVIDER_MORE" {
+		t.Fatalf("provider reasoning deltas were changed or lost: %q", reasoning)
+	}
 	for _, index := range []int{1, 3} {
 		message := s.Messages[index]
+		if strings.Contains(message.Content, "PROVIDER_") {
+			t.Fatal("transient reasoning was stored in conversation content")
+		}
 		if deltas[message.MessageID] != 2 || completed[message.MessageID] != message.Phase {
 			t.Fatalf("stream and transcript differ: %+v", message)
 		}

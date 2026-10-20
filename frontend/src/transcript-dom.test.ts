@@ -6,6 +6,38 @@ import {flushSync} from 'react-dom';
 import {act} from 'react';
 import {mount,type Options} from './transcript';
 
+test('native reasoning streams literally, fades five seconds after its last delta and leaves the answer intact',async t=>{
+  t.mock.timers.enable({apis:['setTimeout','Date'],now:Date.now()});
+  const dom=new JSDOM('<div id="chat"></div>',{url:'http://localhost/'});
+  Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,IS_REACT_ACT_ENVIRONMENT:true});
+  (globalThis as any).IconSystem=createRequire(import.meta.url)('../../gateway/internal/server/static/icons.js');
+  const options:Options={session:()=> 'session',source:()=>null,artifact:()=>null,sourceTitle:()=>'',sourceLocation:()=>'',references:()=>[],artifactTitle:()=>'',toolLabel:name=>name,formatArgs:()=>'',toolSummary:()=>'',toolVisible:()=>true,openResults(){},openArtifact(){},openAttachment(){},openReference(){},openTrace(){},copy(){},retry(){},changed(){}};
+  let store:ReturnType<typeof mount>;
+  await act(async()=>{store=mount(document.querySelector('#chat')!,options);store.addTurn('reasoning');store.apply({type:'message_started',message_id:'native'})});
+  t.after(async()=>{await act(async()=>store.reset());dom.window.close();(globalThis as any).IS_REACT_ACT_ENVIRONMENT=false});
+  const push=(text:string,ts=new Date().toISOString())=>store.apply({type:'reasoning_delta',message_id:'native',text,ts});
+  await act(async()=>push('先检查 <script>标签</script> 与通道。'));
+  assert.equal(document.querySelector('.reasoning-text')!.textContent,'先检查 <script>标签</script> 与通道。');
+  assert.equal(document.querySelector('.reasoning-text script'),null);
+  assert.equal(document.querySelector('.active-status'),null,'one thinking indicator is visible');
+  await act(async()=>t.mock.timers.tick(4000));
+  await act(async()=>push('再比较清洗前后。'));
+  await act(async()=>t.mock.timers.tick(4000));
+  assert.match(document.querySelector('.reasoning-text')!.textContent!,/再比较清洗前后。$/);
+  await act(async()=>{store.message('final','结果已保存。','answer',true);store.finish()});
+  await act(async()=>t.mock.timers.tick(800));
+  assert.equal(document.querySelector('.reasoning-preview')!.classList.contains('is-fading'),true);
+  await act(async()=>t.mock.timers.tick(200));
+  assert.equal(document.querySelector('.reasoning-preview'),null);
+  assert.match(document.querySelector('[data-message-id="final"]')!.textContent!,/结果已保存/);
+  await act(async()=>push('新片段。'));
+  assert.equal(document.querySelector('.reasoning-text')!.textContent,'新片段。','a fresh segment appears after expiry');
+  await act(async()=>store.apply({type:'stopped'}));
+  assert.equal(document.querySelector('.reasoning-preview'),null,'stopping clears the transient progress');
+  await act(async()=>{store.reset();store.addTurn('replay');store.apply({type:'message_started',message_id:'native'});push('旧内容',new Date(Date.now()-10000).toISOString())});
+  assert.equal(document.querySelector('.reasoning-preview'),null,'restoring a stream does not flash expired text');
+});
+
 test('workspace outputs survive history replay and open one scoped catalog instead of another partial file grid',()=>{
   const dom=new JSDOM('<div id="chat"></div>',{url:'http://localhost/'});
   Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement});
