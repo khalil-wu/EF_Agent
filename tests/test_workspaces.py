@@ -164,7 +164,7 @@ def test_local_analysis_finishes_measurements_with_no_classifier_or_upload(mount
     from eegagent.worker.progress import channel
     stages=[]
     with channel(stages.append):
-        result=run_tool("analyze_signal",{"path":str(folder/"a.npz"),"emotion_review":True,"window_s":2,"stride_s":1,"_session_id":"local_fixture"})
+        result=run_tool("analyze_signal",{"path":str(folder/"a.npz"),"emotion_review":True,"window_s":2,"stride_s":1,"_session_id":"local_fixture","_workspace_id":record["workspace_id"]})
     assert result["summary"]["prediction_executed"] is False
     assert result["summary"]["n_windows"] == 3
     assert result["summary"]["features"]["mean_bandpower"]["alpha"] > 0
@@ -176,7 +176,7 @@ def test_local_analysis_finishes_measurements_with_no_classifier_or_upload(mount
     assert result["artifacts"][-1]["summary"]["assessment_status"] == "unassessed"
 
 
-def test_local_analysis_selects_requested_trial_on_an_existing_record(mounted):
+def test_local_analysis_selects_requested_trial_on_an_existing_record(mounted, commit_session):
     from scipy.io import savemat
     from eegagent.worker.inspect_record import inspect_record
     from eegagent.worker.store import load_manifest
@@ -186,6 +186,7 @@ def test_local_analysis_selects_requested_trial_on_an_existing_record(mounted):
     path = folder / "trials.mat"
     savemat(path, {"data": np.stack([trial, 10*trial]), "fs": 128, "ch_names": ["P3", "P4"], "unit": "uV"})
     first = inspect_record(str(path), trial_index=0)
+    commit_session("selected_trial_fixture", [first], workspace_id=record["workspace_id"])
     result = run_tool("analyze_signal", {"manifest_id": first["manifest_id"], "trial_index": 1,
                                        "window_s": 2, "stride_s": 2, "_session_id": "selected_trial_fixture"})
     assert result["manifest"]["trial_index"] == 1

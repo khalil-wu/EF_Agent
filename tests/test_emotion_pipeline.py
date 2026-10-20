@@ -69,8 +69,9 @@ def forbid_inference_and_export(monkeypatch):
     monkeypatch.setattr(emotion_pipeline, "export", forbidden)
 
 
-def test_one_call_preserves_complete_trial_sources_selected_windows_and_csv_json(pair, monkeypatch):
+def test_one_call_preserves_complete_trial_sources_selected_windows_and_csv_json(pair, monkeypatch, commit_session):
     eeg, video, raw = pair
+    commit_session("recognition_fixture", [eeg, video])
     synthetic_reply(monkeypatch, raw)
     calls = []
     executor = emotion_pipeline.run_model

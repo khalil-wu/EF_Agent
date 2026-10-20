@@ -15,6 +15,7 @@ from .chunking import Chunk, knowledge_dir, load_all_chunks
 from .embed import BaseEmbedder, Reranker, embed_chunks, make_embedder, make_reranker
 from .graph import KnowledgeGraph
 from .tokenize import tokenize
+from .revision import revision
 
 RRF_K = 60
 CAND = 50
@@ -65,6 +66,7 @@ class KnowledgeIndex:
     def __init__(self, root: Path | None = None, embedder: BaseEmbedder | None | str = "auto",
                  reranker: Reranker | None | str = "auto", use_cache: bool = True, include_proposed: bool | None = None):
         self.root = root or knowledge_dir()
+        self.revision = revision(self.root)
         self.chunks: list[Chunk] = load_all_chunks(self.root)
         self.by_id = {c.chunk_id: c for c in self.chunks}
         self._pos = {c.chunk_id: i for i, c in enumerate(self.chunks)}
@@ -187,7 +189,7 @@ class KnowledgeIndex:
 
     def stats(self) -> dict:
         docs = sorted({c.doc_id for c in self.chunks})
-        return {"root": str(self.root), "n_docs": len(docs), "n_chunks": len(self.chunks),
+        return {"root": str(self.root), "revision": self.revision, "n_docs": len(docs), "n_chunks": len(self.chunks),
                 "n_papers": len({c.doc_id for c in self.chunks if c.doc_type == "paper"}), "docs": docs,
                 "domains": sorted({c.domain for c in self.chunks}),
                 "dense": self.embedder.name if self.embedder else None,
@@ -201,6 +203,8 @@ def index() -> KnowledgeIndex:
     global _INDEX
     if _INDEX is None:
         _INDEX = KnowledgeIndex()
+    elif _INDEX.revision != revision(_INDEX.root):
+        _INDEX = KnowledgeIndex(_INDEX.root)
     return _INDEX
 
 
@@ -229,4 +233,5 @@ def search_knowledge(query: str, k: int = 5, domain: str | None = None, tasks: l
     note = ("按原文支持的结论引用 [chunk_id]；source_support 是关联原文，关系引用 evidence 块。"
             "本次记录的读数使用分析工具结果。"
             if res["chunks"] or res["facts"] else "本次检索无匹配片段。")
-    return {"status": "ok", "query": query, **res, "evidence_scope": "reference_material", "note": note}
+    return {"status": "ok", "query": query, **res, "index_revision": project.revision if project else None,
+            "evidence_scope": "reference_material", "note": note}

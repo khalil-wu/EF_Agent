@@ -1,0 +1,9 @@
+{
+  "models": {
+    "MiniMax-M3": {
+      "image_input": true,
+      "verified_at": "2026-10-21",
+      "evidence": "四色象限位置问答：红、蓝、黄、绿；正式兼容接口实测。"
+    }
+  }
+}

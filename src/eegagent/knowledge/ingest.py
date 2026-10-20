@@ -18,6 +18,13 @@ from pathlib import Path
 
 from .chunking import chunk_markdown, knowledge_dir
 from .graph import ENTITY_TYPES, RELATIONS
+from .revision import mark_updated
+
+
+def _publish_ingestion(path: Path) -> None:
+    root = knowledge_dir().resolve()
+    if path.resolve().is_relative_to(root):
+        mark_updated(root)
 
 HEADING_WORDS = ("abstract", "introduction", "related work", "background", "method", "methods", "materials", "approach",
                  "experiment", "experiments", "results", "discussion", "conclusion", "conclusions", "acknowledg",
@@ -185,6 +192,7 @@ def ingest_file(path: Path, *, doc_id: str | None = None, title: str | None = No
         title = title or next((l.strip() for l in text.splitlines() if 8 < len(l.strip()) < 160), path.stem)
         md = text_to_markdown(text, doc_id=doc_id, title=title, meta=meta)
         out.write_text(md, encoding="utf-8")
+        _publish_ingestion(out)
         return out
 
     title = title or path.stem
@@ -195,6 +203,7 @@ def ingest_file(path: Path, *, doc_id: str | None = None, title: str | None = No
     out.write_text(md, encoding="utf-8")
     source_info.update(path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest(), name=path.name)
     out.with_suffix(".source.json").write_text(json.dumps(source_info, ensure_ascii=False, indent=2), encoding="utf-8")
+    _publish_ingestion(out)
     return out
 
 
@@ -270,6 +279,7 @@ def extract_graph(doc_id: str, llm: LLMClient, index, max_chunks: int = 12) -> l
     path = knowledge_dir() / "graph" / "extracted" / f"{doc_id}.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in out) + "\n", encoding="utf-8")
+    _publish_ingestion(path)
     return out
 
 
@@ -291,6 +301,7 @@ def review(doc_id: str, accept: list[str] | None = None, reject: list[str] | Non
             r["status"] = "rejected"
             n_rej += 1
     path.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
+    _publish_ingestion(path)
     return {"accepted": n_acc, "rejected": n_rej, "unsupported": n_unsupported, "total": len(rows)}
 
 
@@ -309,4 +320,5 @@ def contextualize(doc_id: str, llm: LLMClient, index) -> Path:
                                    max_tokens=120).strip()
     side = Path(chunks[0].path).with_suffix(".ctx.json")
     side.write_text(json.dumps(ctx, ensure_ascii=False, indent=1), encoding="utf-8")
+    _publish_ingestion(side)
     return side

@@ -44,17 +44,21 @@ import (
 var static embed.FS
 
 type Server struct {
-	Cfg        agent.Config
-	Worker     *worker.Client
-	StorageDir string
-	ModelName  string
-	ModelProxy string
-	mu         sync.Mutex
-	sessions   map[string]*agent.Session
-	views      map[string]json.RawMessage // immutable UI snapshots, published by the session writer
-	uploading  map[string]bool
-	cancels    map[string]context.CancelFunc // session_id -> cancel of the running agent
-	live       map[string]*liveRun
+	Cfg               agent.Config
+	Worker            *worker.Client
+	StorageDir        string
+	ModelName         string
+	ModelProxy        string
+	ModelCapabilities map[string]llm.ModelCapability
+	BuildID           string
+	SourceRoot        string
+	ConfigID          string
+	mu                sync.Mutex
+	sessions          map[string]*agent.Session
+	views             map[string]json.RawMessage // immutable UI snapshots, published by the session writer
+	uploading         map[string]bool
+	cancels           map[string]context.CancelFunc // session_id -> cancel of the running agent
+	live              map[string]*liveRun
 }
 
 func New(cfg agent.Config, w *worker.Client, storageDir string) *Server {
@@ -129,6 +133,9 @@ func (s *Server) Routes() http.Handler {
 			}
 		}
 		result := map[string]any{"status": status, "model": s.ModelName, "tools": tools, "worker": workerState, "llm": "configured", "llm_proxy": s.ModelProxy,
+			"application": "EFAgent", "component": "gateway", "build_id": s.BuildID, "source_root": s.SourceRoot,
+			"storage_dir": s.StorageDir, "worker_url": s.Worker.BaseURL,
+			"configuration_id": s.ConfigID, "process_id": os.Getpid(),
 			"analysis_configuration": map[string]any{"conditions": s.Cfg.Ablations, "skills_enabled": len(s.Cfg.Skills) > 0, "worker_tools": tools}}
 		if err == nil && json.Valid(body) {
 			result["worker_details"] = json.RawMessage(body)
@@ -543,6 +550,11 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 	if s.uploading[ses.ID] {
 		s.mu.Unlock()
 		writeJSON(w, 409, map[string]string{"error": "文件正在读取，请稍后发送"})
+		return
+	}
+	if s.hasImageInput(ses, in.Attachments) && !s.ModelCapabilities[s.conversationModel(ses)].ImageInput {
+		s.mu.Unlock()
+		writeJSON(w, 400, map[string]any{"error": "图片问答请先选择已验证的看图模型。", "code": "image_model_required", "image_models": s.imageModels()})
 		return
 	}
 	if s.cancels[ses.ID] != nil {

@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="eegagent.knowledge")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("stats")
+    sub.add_parser("refresh")
     s = sub.add_parser("search")
     s.add_argument("query")
     s.add_argument("-k", type=int, default=5)
@@ -63,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("qa")
     v.add_argument("-k", type=int, default=5)
     a = ap.parse_args(argv)
+
+    if a.cmd == "refresh":
+        from .chunking import knowledge_dir
+        from .revision import mark_updated
+        print(json.dumps({"root": str(knowledge_dir()), "revision": mark_updated(knowledge_dir())}, ensure_ascii=False))
+        return 0
 
     from .index import KnowledgeIndex
 

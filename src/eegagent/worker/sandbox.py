@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-from eegagent.worker.files import data_dirs, scratch_dir
+from eegagent.worker.files import data_dirs, scratch_dir, readable_roots
 from eegagent.worker.store import artifact_payload_path, ensure_layout, make_artifact_id, save_artifact, storage_dir
 
 VERSION = "1.3"
@@ -165,18 +165,18 @@ def _run_python(code: str, session_id: str, timeout_s: float | None, label: str 
     progress_path.touch()
     src_dir = str(Path(__file__).resolve().parents[2])
     cfg = {
-        "session_id": sid, "scratch": str(scratch), "run_id": run_id, "code_sha": code_sha,
+        "session_id": sid, "storage_dir": str(storage_dir()), "scratch": str(scratch), "run_id": run_id, "code_sha": code_sha,
         "code_path": str(code_path), "result_path": str(result_path), "src_dir": src_dir,
         "workspace_id": workspace_id, "workspace_root": workspace_root,
         "progress_path": str(progress_path),
-        "read_roots": [str(storage_dir().resolve()), str(model_registry)] + ([workspace_root] if workspace_root else [str(d) for d in data_dirs()]),
+        "read_roots": [str(path) for path in readable_roots(sid, workspace_id)] + [str(model_registry), str(storage_dir() / "sessions" / (sid + ".json"))] + ([str(storage_dir() / "workspaces" / (workspace_id + ".json"))] if workspace_id else []),
         "write_roots": [str(scratch), str(ensure_layout() / "artifacts")],
         "tool_write_roots": [str(storage_dir() / "manifests"), str(documents)],
     }
     cfg_path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
     before = _snapshot(scratch)
 
-    env = {k: v for k, v in os.environ.items() if not k.startswith("EEGAGENT_LLM")}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("EEGAGENT_LLM", "EFAGENT_LLM"))}
     tmp_dir = scratch / ".tmp"
     tmp_dir.mkdir(exist_ok=True)
     home = scratch / ".home"

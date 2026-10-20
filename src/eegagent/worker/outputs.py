@@ -18,7 +18,7 @@ from eegagent.worker.channels import VOLT_TYPES
 from eegagent.worker.store import artifact_payload_path, load_artifact, load_manifest, make_artifact_id, resolve_inside_storage, save_artifact, storage_dir
 from eegagent.worker.figures import BAND_COLORS, BAND_LABELS, COLORS as PALETTE, FONT_SIZES, LINE_STYLES, WIDTHS, figure, peak_preserving_indices, save_files, style, unit_note, sampling_note
 
-VERSION = "3.4"
+VERSION = "3.5"
 PLOT_PRESENTATION = {
     "raw": ("EEG 波形", "展示各通道振幅随时间的变化，便于查看波形和瞬态变化。"),
     "psd": ("功率谱密度（PSD）", "展示信号功率在各频率的分布，便于查看节律主峰和工频附近能量。"),
@@ -683,9 +683,11 @@ def export(kind: str, source_id: str) -> dict:
             columns = ["window", "window_end", "start_s", "end_s", "epoch_index", "epoch_start_s", "epoch_end_s",
                        "original_start_s", "original_end_s", "original_time_ranges_s", "label", "assessment_status", "rationale",
                        "model_id", "model_version", "run_id", "score_kind", "calibration_status", "weight_sha256", "input_recipe",
+                       "evaluation_status", "checkpoint_selection", "split_protocol",
                        "video_manifest_id", "video_start_s", "video_end_s", "sync_offset_s", "video_role",
                        "label_text", "valence", "arousal"]
             columns += ["score:" + name for name in score_names] + ["value:" + dim["name"] + " (" + dim["unit"] + ")" for dim in dimensions]
+            evaluation = (payload.get("model") or {}).get("evaluation", {})
             with path.open("w", encoding="utf-8", newline="") as stream:
                 writer = csv.writer(stream)
                 writer.writerow(columns)
@@ -700,6 +702,7 @@ def export(kind: str, source_id: str) -> dict:
                         payload.get("score_kind"), payload.get("calibration", {}).get("status"),
                         payload.get("model", {}).get("weight_sha256"),
                         json.dumps(payload.get("model", {}).get("input_recipe"), ensure_ascii=False),
+                        evaluation.get("status"), evaluation.get("checkpoint_selection"), evaluation.get("split_protocol"),
                         row.get("video_manifest_id"), *row.get("video_time_range_s", [None, None]),
                         payload.get("paired_video", {}).get("sync_offset_s"), payload.get("paired_video", {}).get("video_role"),
                         row.get("label_text"), row.get("valence"), row.get("arousal"),
@@ -796,6 +799,9 @@ def _export_signal(kind: str, source_id: str) -> dict:
     unit = amplitude_unit(steps)
     art_id = make_artifact_id("export", VERSION, {"kind": kind, "source": source_id})
     notes: list[str] = []
+    stored_samples = int(data.shape[1])
+    file_rate = float(sr)
+    representations = {}
     if kind == "signal_csv":
         path = artifact_payload_path(art_id, "csv")
         buf = io.StringIO()
@@ -816,9 +822,21 @@ def _export_signal(kind: str, source_id: str) -> dict:
             raise ValueError("EDF 电压导出需要物理幅值单位；归一化或未知单位的信号请导出 signal_csv")
         path = artifact_payload_path(art_id, "edf")
         edf_sr = _write_edf(path, data, sr, names, unit)
+        file_rate = edf_sr
+        samples_per_record, _, records = _edf_clock(data.shape[1], sr)
+        stored_samples = samples_per_record * records
+        if stored_samples != data.shape[1]:
+            notes.append(f"EDF 文件含 {stored_samples-data.shape[1]} 个尾部补零采样；有效信号为 {data.shape[1]} 点。")
         if edf_sr != sr:
-            notes.append(f"EDF 每秒采样数须为整数，采样率 {sr:g} → {edf_sr:g} Hz")
+            notes.append(f"EDF 记录时钟采用 {edf_sr:g} Hz；来源采样率为 {sr:g} Hz。")
         media = "application/x-edf"
+        metadata_path = artifact_payload_path(art_id, "json")
+        metadata_path.write_text(json.dumps({"source_id": source_id, "signal": geometry,
+            "valid_samples": int(data.shape[1]), "stored_samples": stored_samples,
+            "file_sample_rate_hz": file_rate, "file_duration_s": stored_samples/file_rate,
+            "padding_samples": stored_samples-int(data.shape[1]), "unit": unit}, ensure_ascii=False, indent=2), encoding="utf-8")
+        representations = {"edf": {"uri": str(path), "media_type": media},
+                           "json": {"uri": str(metadata_path), "media_type": "application/json"}}
     if unit != "µV":
         notes.append(f"幅值单位为{unit}（非 µV），接收方软件里的物理量纲按此理解")
     record = save_artifact({
@@ -826,22 +844,48 @@ def _export_signal(kind: str, source_id: str) -> dict:
         "source_manifest_ids": mids, "parent_artifact_ids": [source_id],
         "time_range_s": [0.0, round(data.shape[1] / sr, 3)],
         "signal": geometry, "analysis": analysis_context(source_id),
+        **({"representations": representations} if representations else {}),
         "summary": {"format": kind, "n_channels": int(data.shape[0]), "n_samples": int(data.shape[1]),
+                    "stored_samples": stored_samples, "file_duration_s": stored_samples / file_rate, "file_sample_rate_hz": file_rate,
                     "sample_rate_hz": float(sr), "channel_names": names, "unit": unit, "source": source_id, "notes": notes},
         "provenance": {"created_by": f"export@{VERSION}", "params": {"kind": kind, "source": source_id}, "steps": steps + [f"export_{kind}"]},
     })
     return {"status": "ok", "artifact": _public(record), "summary": record["summary"]}
 
 
+def _edf_clock(n_samples: int, sr: float) -> tuple[int, str, int]:
+    from fractions import Fraction
+    from math import gcd
+    clock = Fraction(str(sr)).limit_denominator(1000000)
+    samples = gcd(n_samples, clock.numerator)
+    duration = samples / sr
+    text = f"{duration:.7g}"
+    if len(text) > 8 or Fraction(text) != Fraction(samples * clock.denominator, clock.numerator):
+        samples, text = clock.numerator, str(clock.denominator)
+    return samples, text, (n_samples + samples - 1) // samples
+
+
+def _edf_range(value: float, lower: bool) -> tuple[str, float]:
+    from decimal import Decimal, localcontext, ROUND_FLOOR, ROUND_CEILING
+    for precision in range(7, 0, -1):
+        with localcontext() as context:
+            context.prec = precision
+            context.rounding = ROUND_FLOOR if lower else ROUND_CEILING
+            rounded = +Decimal(str(value))
+            candidates = [format(rounded, "g"), format(rounded, "E")]
+        candidates = [re.sub(r"e([+-])0+", r"e\1", text.lower()).replace("e+", "e") for text in candidates]
+        text = min(candidates, key=len)
+        if len(text) <= 8:
+            return text, float(text)
+    raise ValueError("该物理幅值范围无法写入 EDF 的 8 字节字段，请采用 signal_csv。")
+
+
 def _write_edf(path, data: np.ndarray, sr: float, names: list[str], unit: str) -> float:
     """EDF int16 writer; rational record durations preserve fractional sampling rates."""
     from datetime import datetime
-    from fractions import Fraction
-
     n_ch, n_total = data.shape
-    clock = Fraction(str(sr)).limit_denominator(1000)
-    spr, record_duration = clock.numerator, clock.denominator
-    n_rec = int(np.ceil(n_total / spr))
+    spr, duration_text, n_rec = _edf_clock(n_total, sr)
+    record_duration = float(duration_text)
     pad = n_rec * spr - n_total
     sig = np.pad(data, ((0, 0), (0, pad))) if pad else data
     dim = "uV" if unit == "µV" else ""
@@ -850,6 +894,10 @@ def _write_edf(path, data: np.ndarray, sr: float, names: list[str], unit: str) -
     flat = phys_max <= phys_min
     phys_min[flat] -= 1.0
     phys_max[flat] += 1.0
+    minima = [_edf_range(float(value), True) for value in phys_min]
+    maxima = [_edf_range(float(value), False) for value in phys_max]
+    phys_min = np.array([value for _, value in minima])
+    phys_max = np.array([value for _, value in maxima])
     dig_min, dig_max = -32768.0, 32767.0
     scale = (dig_max - dig_min) / (phys_max - phys_min)
     dig = np.rint((sig - phys_min[:, None]) * scale[:, None] + dig_min).clip(dig_min, dig_max).astype("<i2")
@@ -867,13 +915,13 @@ def _write_edf(path, data: np.ndarray, sr: float, names: list[str], unit: str) -
     hdr = [
         field("0", 8), field("EFAgent export", 80), field("signal", 80),
         field(now.strftime("%d.%m.%y"), 8), field(now.strftime("%H.%M.%S"), 8),
-        field(256 * (n_ch + 1), 8), field("", 44), field(n_rec, 8), field(record_duration, 8), field(n_ch, 4),
+        field(256 * (n_ch + 1), 8), field("", 44), field(n_rec, 8), field(duration_text, 8), field(n_ch, 4),
     ]
     hdr.append(b"".join(field(x, 16) for x in labels))
     hdr.append(field("", 80) * n_ch)                                    # transducer
     hdr.append(b"".join(field(dim, 8) for _ in range(n_ch)))            # phys_dim
-    hdr.append(b"".join(field(f"{v:.5g}", 8) for v in phys_min))
-    hdr.append(b"".join(field(f"{v:.5g}", 8) for v in phys_max))
+    hdr.append(b"".join(field(text, 8) for text, _ in minima))
+    hdr.append(b"".join(field(text, 8) for text, _ in maxima))
     hdr.append(field(int(dig_min), 8) * n_ch)
     hdr.append(field(int(dig_max), 8) * n_ch)
     hdr.append(field("", 80) * n_ch)                                    # prefilter

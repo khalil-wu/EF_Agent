@@ -154,6 +154,7 @@ def test_raw_preserves_large_excursions_and_discloses_inferred_units(scientific_
     manifest, original = scientific_signal
     original[0, 128] = 10_000
     np.save(manifest["source_path"], original)
+    manifest = inspect_record(manifest["source_path"], sample_rate_hz=128, channel_names=manifest["channel_names"])
     manifest["unit"] = {"value": "uV", "source": "inferred", "confidence": .5}
     store.save_manifest(manifest)
     captured = {}
@@ -190,6 +191,7 @@ def test_timeline_does_not_classify_power_excursions_as_artifacts(scientific_sig
     manifest, data = scientific_signal
     data[:, 512:768] *= 1000
     np.save(manifest["source_path"], data)
+    manifest = inspect_record(manifest["source_path"], sample_rate_hz=128, channel_names=manifest["channel_names"])
     windows = segment_signal(manifest["manifest_id"], 2)["artifact"]["artifact_id"]
     features = extract_features(windows, ["bandpower"])["artifact"]["artifact_id"]
     result = outputs.plot("bandpower_timeline", features, band="alpha")
@@ -210,8 +212,9 @@ def test_normalized_units_and_unavailable_bands_remain_explicit(scientific_signa
     assert "归一化数值（任意单位）" in image["summary"]["unit_note"]
 
 
-def test_generated_script_uses_same_figure_api_and_vector_export(scientific_signal):
+def test_generated_script_uses_same_figure_api_and_vector_export(scientific_signal, commit_session):
     manifest, _ = scientific_signal
+    commit_session("ses_scientific_figure", [manifest])
     result = run_python(f'''
 data, sr, channels = eeg.load_signal("{manifest["manifest_id"]}")
 steps = eeg.signal_steps("{manifest["manifest_id"]}")
@@ -293,6 +296,7 @@ def test_plot_excludes_peripheral_channels_from_voltage_axes(scientific_signal, 
 def test_zero_power_is_shown_without_inventing_a_peak(scientific_signal, monkeypatch):
     manifest, data = scientific_signal
     np.save(manifest["source_path"], np.zeros_like(data))
+    manifest = inspect_record(manifest["source_path"], sample_rate_hz=128, channel_names=manifest["channel_names"])
     captured = {}
 
     def capture(fig, kind, inputs, sources, parents, tr, summary, steps):
@@ -378,6 +382,7 @@ def test_feature_psd_selected_seconds_recompute_signal_instead_of_relabeling_mea
     t = np.arange(data.shape[1]) / 128
     data[:, t >= 6] = 50 * np.sin(2 * np.pi * 20 * t[t >= 6])
     np.save(manifest["source_path"], data)
+    manifest = inspect_record(manifest["source_path"], sample_rate_hz=128, channel_names=manifest["channel_names"])
     windows = segment_signal(manifest["manifest_id"], 2)["artifact"]["artifact_id"]
     features = extract_features(windows, ["bandpower"])["artifact"]["artifact_id"]
     full = outputs.plot("psd", features)

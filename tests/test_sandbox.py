@@ -55,7 +55,8 @@ def test_tail_truncate_keeps_last_lines():
     assert truncated and out.splitlines()[-1] == "line 4999" and len(out.splitlines()) == 10
 
 
-def test_script_copies_readonly_input_into_scratch_without_changing_the_source(storage: Path, manifest: dict):
+def test_script_copies_readonly_input_into_scratch_without_changing_the_source(storage: Path, manifest: dict, commit_session):
+    commit_session("ses_input_copy", [manifest])
     source = Path(manifest["source_path"])
     original = source.read_bytes()
     code = f"import shutil\nshutil.copy2({str(source)!r}, 'input-copy.npy')\n"
@@ -65,7 +66,8 @@ def test_script_copies_readonly_input_into_scratch_without_changing_the_source(s
     assert (storage / "scratch/ses_input_copy/input-copy.npy").read_bytes() == original
 
 
-def test_script_reads_signal_and_saves_artifacts(storage: Path, manifest: dict):
+def test_script_reads_signal_and_saves_artifacts(storage: Path, manifest: dict, commit_session):
+    commit_session("ses_test01", [manifest])
     code = f'''
 import numpy as np
 from scipy import signal as sps
@@ -94,7 +96,8 @@ print("done", tid, fid)
         assert a["provenance"]["created_by"].startswith("run_python@")
 
 
-def test_plain_script_deliverables_are_downloadable_immutable_and_keep_sources_after_an_error(storage: Path, manifest: dict):
+def test_plain_script_deliverables_are_downloadable_immutable_and_keep_sources_after_an_error(storage: Path, manifest: dict, commit_session):
+    commit_session("ses_plain_delivery", [manifest])
     from eegagent.worker.outputs import export, read_artifact
     code = f'''
 from pathlib import Path
@@ -149,12 +152,13 @@ def test_script_timeout_and_errors_are_reported(storage: Path):
     assert (storage / "scratch" / "ses_test03" / "run_002.py").exists()
 
 
-def test_script_uses_mne_ecosystem_and_saves_raw(storage: Path):
+def test_script_uses_mne_ecosystem_and_saves_raw(storage: Path, commit_session):
     from eeg_synth import make_eeg, save_set
 
     data, sr, names, blink = make_eeg(sr=128, secs=20)
     p = save_set(storage / "uploads" / "r.set", data, sr, names, extra={"EOG1": ("eog", blink)}, annotations=[(5.0, 0.0, "stim")])
     m = inspect_record(str(p))
+    commit_session("ses_mne01", [m])
     code = f'''
 import numpy as np, mne
 from scipy import signal as sps

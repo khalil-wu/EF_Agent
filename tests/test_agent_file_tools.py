@@ -50,11 +50,12 @@ def test_workspace_text_creation_exact_edit_and_explicit_overwrite(workspace):
     assert not (folder.parent / "outside.txt").exists()
 
 
-def test_save_real_artifact_to_workspace_preserves_source_and_overwrite_contract(workspace):
+def test_save_real_artifact_to_workspace_preserves_source_and_overwrite_contract(workspace, commit_session):
     folder, record, context = workspace
     api = EEGApi(context["_session_id"], store.ensure_layout() / "scratch", "test", "save-fixture")
     identifier = api.save_table([{"subject": "被试 01", "alpha": 1.25}], name="features")
     source = Path(store.load_artifact(identifier)["uri"])
+    commit_session(context["_session_id"], artifacts=[store.load_artifact(identifier)], workspace_id=record["workspace_id"])
     original = source.read_bytes()
     result = run_tool("save_to_workspace", {**context, "artifact_id": identifier, "path": "results/features.csv"})
     assert result["artifact_id"] == identifier

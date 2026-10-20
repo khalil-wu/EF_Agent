@@ -1,8 +1,22 @@
 """Portable model contracts for tests that mock the remote executor."""
 from pathlib import Path
+import json
 
 import pytest
 import yaml
+
+
+@pytest.fixture
+def commit_session():
+    """Write the committed input/product snapshot normally published by the gateway."""
+    from eegagent.worker import store
+
+    def commit(sid, manifests=(), artifacts=(), workspace_id=None):
+        path = store.ensure_layout() / "sessions" / (sid + ".json")
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps({"manifests": list(manifests), "artifacts": list(artifacts),
+                                    "workspace_id": workspace_id}), encoding="utf-8")
+    return commit
 
 
 @pytest.fixture

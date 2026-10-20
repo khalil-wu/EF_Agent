@@ -17,7 +17,7 @@ from eegagent.worker.files import resolve_readable, scratch_dir
 from eegagent.worker.channel_orders import CHANNEL_ORDERS
 from eegagent.worker.channels import normalize_channel
 from eegagent.worker.model_prediction import save_model_prediction
-from eegagent.worker.models import EXECUTABLE_MODELS, list_models, paired_video_context
+from eegagent.worker.models import EXECUTABLE_MODELS, list_models, paired_video_context, model_evaluation
 from eegagent.worker.processing import _public
 from eegagent.worker.progress import report as progress
 from eegagent.worker.recognition_windows import prediction_plan, video_coverage_error
@@ -284,6 +284,7 @@ def _run_model(source_id, data, sr, names, model, sid, job, deadline, start_s, e
                                            "params": {"model": identity, "preparation": received["preparation"]},
                                            "steps": windows["provenance"]["steps"] + ["model_input_preparation"]}})
     identity = {**identity, "input_artifact_id": input_id, "preparation": received["preparation"],
+                "evaluation": model_evaluation(model),
                 "runtime": received["runtime"], "source_channel_mapping": model["source_channel_mapping"],
                 "source_channel_order": model["source_channel_order"], "excluded_source_channels": model["excluded_source_channels"],
                 "limitations": model.get("limitations", [])}

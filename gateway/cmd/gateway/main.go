@@ -213,6 +213,13 @@ func main() {
 	srv := server.New(cfg, wc, storageDir)
 	srv.ModelName = model
 	srv.ModelProxy = proxyMode
+	srv.BuildID = env("EEGAGENT_GATEWAY_BUILD_ID", env("EEGAGENT_BUILD_ID", "development"))
+	srv.ConfigID = os.Getenv("EEGAGENT_GATEWAY_CONFIG_ID")
+	srv.SourceRoot, _ = filepath.Abs(env("EEGAGENT_SOURCE_ROOT", ".."))
+	srv.ModelCapabilities, err = llm.LoadCapabilities(env("EEGAGENT_LLM_CAPABILITIES", filepath.Join("..", "configs", "conversation_models.json")))
+	if err != nil {
+		log.Fatalf("load conversation model capabilities: %v", err)
+	}
 	addr := env("EEGAGENT_ADDR", ":8080")
 	displayAddr := addr
 	if strings.HasPrefix(displayAddr, ":") {

@@ -18,6 +18,7 @@ from eegagent.worker.store import load_artifact, load_manifest, resolve_inside_s
 
 _CACHE: "OrderedDict[str, tuple[np.ndarray, float, list[str]]]" = OrderedDict()
 _CACHE_MAX = 8
+_CHECKED_SOURCES: dict[str, list[dict]] = {}
 
 
 def amplitude_unit(steps: list[str]) -> str:
@@ -45,7 +46,8 @@ def amplitude_unit_source(steps: list[str]) -> str:
 def _remember(key: str, value):
     _CACHE[key] = value
     if len(_CACHE) > _CACHE_MAX:
-        _CACHE.popitem(last=False)
+        evicted, _ = _CACHE.popitem(last=False)
+        _CHECKED_SOURCES.pop(evicted, None)
     return value
 
 
@@ -60,10 +62,8 @@ def _trial_index(m: dict) -> int | None:
 
 def load_signal(manifest_id: str) -> tuple[np.ndarray, float, list[str]]:
     """Return (data [C, N], sample_rate_hz, names), preserving explicitly declared native dataset scale."""
-    if manifest_id in _CACHE:
-        return _CACHE[manifest_id]
     from eegagent.worker.readers import read_record
-    from eegagent.worker.readers import MNE_EXTS, file_ext
+    from eegagent.worker.readers import MNE_EXTS, file_ext, content_sha, source_signature
 
     m = load_manifest(manifest_id)
     if m.get("modality") != "eeg":
@@ -71,7 +71,16 @@ def load_signal(manifest_id: str) -> tuple[np.ndarray, float, list[str]]:
     sr = m.get("sample_rate_hz")
     if not sr:
         raise ValueError("采样率未知：请先让用户提供 sample_rate_hz 并重新 inspect_record")
-    rec = read_record(resolve_inside_roots(m["source_path"]), sample_rate_hz=sr, trial_index=_trial_index(m))
+    path = resolve_inside_roots(m["source_path"])
+    signature = source_signature(path, m.get("source_files", []))
+    if signature != _CHECKED_SOURCES.get(manifest_id, m.get("source_signature")):
+        digest = content_sha(path, m.get("source_files", []))
+        if m.get("attachment_sha256") and digest != m["attachment_sha256"]:
+            raise ValueError(f"来源文件已改变，记录 {manifest_id} 仍属于旧内容。请 inspect_record(path={str(path)!r}) 登记新版本；已有产物保留原来的引用。")
+        _CHECKED_SOURCES[manifest_id] = signature
+    if manifest_id in _CACHE:
+        return _CACHE[manifest_id]
+    rec = read_record(path, sample_rate_hz=sr, trial_index=_trial_index(m))
     data = np.asarray(rec.data, dtype=float)
     unit = (m.get("unit") or {}).get("value")
     if file_ext(resolve_inside_roots(m["source_path"])) not in MNE_EXTS:

@@ -1,6 +1,7 @@
 """Filesystem boundary of the worker: allowed roots, list_files, read_file.
 
-Readable roots = storage/ (uploads, manifests, artifacts, scratch) + EEGAGENT_DATA_DIRS.
+Session reads = committed inputs and products, current workspace, scratch and EEGAGENT_DATA_DIRS.
+Registration and preview endpoints without a session use the instance storage and data roots.
 Writable roots = storage/scratch/<session>/ and storage/artifacts/ (only through the sandbox API).
 Nothing outside these roots is ever listed, read or written. This module and sandbox_runner.py are the
 whole security boundary of the worker; run the worker in a container for stronger isolation.
@@ -9,9 +10,12 @@ whole security boundary of the worker; run the worker in a container for stronge
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 import shutil
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from eegagent.worker.store import ensure_layout, load_artifact, resolve_inside_storage, storage_dir
@@ -23,6 +27,58 @@ MAX_LIST = 200
 READ_MAX_LINES = 2000
 READ_MAX_BYTES = 50 * 1024
 SESSION_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+_ACCESS = ContextVar("tool_file_access", default=(None, None, None))
+
+
+@contextmanager
+def access_scope(session_id, workspace_id=None):
+    current = _ACCESS.get()
+    if current[:2] == (session_id, workspace_id) and current[2] is not None:
+        yield
+        return
+    token = _ACCESS.set((session_id, workspace_id, []))
+    try:
+        yield
+    finally:
+        _ACCESS.reset(token)
+
+
+def grant_files(paths):
+    additional = _ACCESS.get()[2]
+    if additional is not None:
+        additional.extend(Path(path).resolve() for path in paths if path)
+
+
+def scoped_metadata(path):
+    if _ACCESS.get()[0]:
+        resolve_readable(path)
+
+
+def session_files(session_id: str) -> tuple[dict, list[Path]]:
+    snapshot = storage_dir() / "sessions" / (session_id + ".json")
+    session = json.loads(snapshot.read_text(encoding="utf-8")) if snapshot.exists() else {}
+    session.update({key: session.get(key) or [] for key in ("manifests", "artifacts")})
+    paths, seen = [], set()
+    records = [*session.get("manifests", []), *session.get("artifacts", [])]
+    for record in records:
+        identifier = record.get("manifest_id") or record["artifact_id"]
+        if identifier in seen:
+            continue
+        seen.add(identifier)
+        folder = "manifests" if "manifest_id" in record else "artifacts"
+        paths.append(storage_dir() / folder / (identifier + ".json"))
+        if folder == "manifests":
+            paths.extend(Path(record[key]) for key in ("source_path", "vision_path") if record.get(key))
+            paths.extend(Path(path) for path in record.get("source_files", []))
+        else:
+            paths.append(Path(record["uri"]))
+            paths.extend(Path(value["uri"]) for value in record.get("representations", {}).values())
+            # An older product keeps its registered inputs after current metadata is revised.
+            for parent in [*record.get("source_manifest_ids", []), *record.get("parent_artifact_ids", [])]:
+                metadata = storage_dir() / ("artifacts" if parent.startswith("art_") else "manifests") / (parent + ".json")
+                if parent not in seen and metadata.exists():
+                    records.append(json.loads(metadata.read_text(encoding="utf-8")))
+    return session, paths
 
 
 def data_dirs(include_workspaces=True) -> list[Path]:
@@ -51,19 +107,26 @@ def scratch_dir(session_id: str | None) -> Path:
     return p
 
 
-def readable_roots(session_id: str | None = None) -> list[Path]:
-    """Everything the model may read: whole storage dir (uploads/manifests/artifacts/scratch) + data dirs."""
-    roots = [storage_dir().resolve()] + data_dirs()
-    if session_id:
-        roots.append(scratch_dir(session_id).resolve())
-    return roots
+def readable_roots(session_id: str | None = None, workspace_id: str | None = None) -> list[Path]:
+    """A tool sees submitted inputs, current workspace and its own scratch, not raw upload folders."""
+    active_session, active_workspace, additional = _ACCESS.get()
+    session_id, workspace_id = session_id or active_session, workspace_id or active_workspace
+    if not session_id:
+        return [storage_dir().resolve()] + data_dirs()
+    session, paths = session_files(session_id)
+    roots = [*data_dirs(False), scratch_dir(session_id).resolve(), *paths, *(additional or [])]
+    workspace_id = workspace_id or session.get("workspace_id")
+    if workspace_id:
+        from eegagent.worker.workspaces import load
+        roots.append(Path(load(workspace_id)["root"]))
+    return list(dict.fromkeys(path.resolve() for path in roots))
 
 
 def _resolve_under(path: str | Path, roots: list[Path]) -> Path:
     candidate = Path(path)
     missing = []
     for root in roots:
-        c = candidate if candidate.is_absolute() else root / candidate
+        c = candidate if candidate.is_absolute() else root.parent / candidate if root.is_file() else root / candidate
         try:
             c = c.resolve()
             c.relative_to(root)
@@ -77,8 +140,8 @@ def _resolve_under(path: str | Path, roots: list[Path]) -> Path:
     raise PermissionError(f"path outside allowed roots: {candidate}")
 
 
-def resolve_readable(path: str | Path, session_id: str | None = None) -> Path:
-    return _resolve_under(path, readable_roots(session_id))
+def resolve_readable(path: str | Path, session_id: str | None = None, workspace_id: str | None = None) -> Path:
+    return _resolve_under(path, readable_roots(session_id, workspace_id))
 
 
 def resolve_inside_roots(path: str | Path) -> Path:
@@ -98,8 +161,13 @@ def list_files(pattern: str | None = None, kind: str = "eeg", root: str | None =
         root = str(resolve_workspace(workspace, root or ""))
     roots = data_roots()
     if session_id:
-        roots = [ensure_layout() / "uploads" / session_id, *data_dirs(False), scratch_dir(session_id)]
-    allowed = readable_roots(session_id)
+        roots = readable_roots(session_id, workspace_id)
+        session, _ = session_files(session_id)
+        listed = {Path(value).resolve() for manifest in session.get("manifests", [])
+                  for value in [manifest.get("source_path"), *manifest.get("source_files", [])] if value}
+        listed.update(Path(record["uri"]).resolve() for record in session.get("artifacts", []))
+        roots = [path for path in roots if path.is_dir() or path in listed]
+    allowed = readable_roots(session_id, workspace_id)
     if root:
         try:
             want = _resolve_under(root, allowed)
@@ -120,11 +188,11 @@ def list_files(pattern: str | None = None, kind: str = "eeg", root: str | None =
     limit = max(1, min(int(limit), MAX_LIST))
     rows: list[dict] = []
     for r in roots:
-        walker = r.rglob("*") if recursive else r.glob("*")
+        walker = [r] if r.is_file() else r.rglob("*") if recursive else r.glob("*")
         for p in walker:
             if not p.is_file() and not (p.is_dir() and file_ext(p) == ".mff"):
                 continue
-            if (workspace and excluded(workspace, p)) or any(part.startswith(".") for part in p.relative_to(r).parts):
+            if (workspace and excluded(workspace, p)) or any(part.startswith(".") for part in p.relative_to(r.parent if r.is_file() else r).parts):
                 continue
             extension = file_ext(p)
             if exts is not None and extension not in exts:
@@ -141,6 +209,7 @@ def list_files(pattern: str | None = None, kind: str = "eeg", root: str | None =
                 continue
             size = sum(member.stat().st_size for member in p.rglob("*") if member.is_file()) if p.is_dir() else st.st_size
             rows.append({"path": str(p), "name": p.name, "ext": extension, "size_mb": round(size / 1e6, 3), "root": str(r)})
+    rows = list({row["path"]: row for row in rows}.values())
     rows.sort(key=lambda x: (x["root"], x["name"]))
     total = len(rows)
     page = rows[offset:offset+limit]
@@ -152,12 +221,12 @@ def list_files(pattern: str | None = None, kind: str = "eeg", root: str | None =
 # ---------------------------------------------------------------- read_file
 
 def read_file(path: str, offset: int = 1, limit: int = 200, session_id: str | None = None,
-              workspace_id: str | None = None) -> dict:
+              workspace_id: str | None = None, char_offset: int = 0) -> dict:
     if workspace_id and not Path(path).is_absolute():
         from eegagent.worker.workspaces import load, resolve
         p = resolve(load(workspace_id), path)
     else:
-        p = resolve_readable(path, session_id)
+        p = resolve_readable(path, session_id, workspace_id)
     if not p.exists() or not p.is_file():
         raise FileNotFoundError(str(p))
     with p.open("rb") as stream:
@@ -171,21 +240,26 @@ def read_file(path: str, offset: int = 1, limit: int = 200, session_id: str | No
     total = len(lines)
     offset = max(1, int(offset))
     limit = max(1, min(int(limit), READ_MAX_LINES))
-    sel = lines[offset - 1: offset - 1 + limit]
-    out_lines: list[str] = []
-    nbytes = 0
-    truncated_by_bytes = False
-    for ln in sel:
-        b = len(ln.encode("utf-8")) + 1
-        if nbytes + b > READ_MAX_BYTES:
-            truncated_by_bytes = True
+    cursor, position = offset - 1, max(0, int(char_offset))
+    out_lines, remaining = [], READ_MAX_BYTES
+    while cursor < total and len(out_lines) < limit and remaining:
+        line = lines[cursor][position:]
+        encoded = line.encode("utf-8")
+        part = encoded[:remaining].decode("utf-8", errors="ignore")
+        out_lines.append(part)
+        remaining -= len(part.encode("utf-8"))
+        if len(part) < len(line):
+            position += len(part)
             break
-        out_lines.append(ln)
-        nbytes += b
+        cursor, position = cursor + 1, 0
+        if remaining:
+            remaining -= 1
     end = offset - 1 + len(out_lines)
+    truncated = cursor < total
     return {"status": "ok", "path": str(p), "encoding": encoding, "total_lines": total, "start_line": offset, "end_line": end,
-            "content": "\n".join(out_lines), "truncated": end < total or truncated_by_bytes,
-            "note": f"显示第 {offset}–{end} 行，共 {total} 行；继续读用 offset={end + 1}" if end < total else ""}
+            "content": "\n".join(out_lines), "truncated": truncated,
+            "next_offset": cursor + 1 if truncated else None, "next_char_offset": position if truncated else None,
+            "note": f"继续读用 offset={cursor + 1}, char_offset={position}" if truncated else ""}
 
 
 def _workspace_target(workspace_id: str, path: str):

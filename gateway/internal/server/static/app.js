@@ -8,7 +8,7 @@ let sessionsCache=[],trashView=false,sessionListVersion=0,menuRecord=null,dialog
 let currentTitle='',currentParent='',activeSkillName='';
 let skillCatalog=[],commandIndex=0,commandMatches=[];
 let modelCatalog=[],modelTask='emotion',pendingInput=null;
-let currentLLMModel='',defaultLLMModel='',llmModels=[],changingModel=false;
+let currentLLMModel='',defaultLLMModel='',llmModels=[],modelCapabilities={},changingModel=false;
 let pendingFiles=[],pendingFilesBySession=new Map(),uploadTask=null;
 const fileUploads=new WeakMap();
 let transcript,liveCursor=null;
@@ -572,7 +572,8 @@ function removePendingFile(file){
   renderPendingFiles();if(removed.length>1)snack('已移除关联脑电文件组');
 }
 function renderPendingFiles(){
-  const box=$('#pendingFiles');box.replaceChildren();box.hidden=!pendingFiles.length;
+  const needsModel=hasImageInput()&&!modelCapabilities[currentLLMModel]?.image_input;
+  const box=$('#pendingFiles');box.replaceChildren();box.hidden=!pendingFiles.length&&!needsModel;
   pendingFiles.forEach(file=>{
     const state=fileUploads.get(file),chip=document.createElement('span');chip.className='pending-file '+state.status;
     if(state.manifest?.modality==='image'){const image=document.createElement('img');image.className='pending-file-thumb';image.src=`/sessions/${state.sessionId}/attachments/${state.manifest.manifest_id}/file?view=1`;image.alt='';chip.appendChild(image)}
@@ -587,9 +588,10 @@ function renderPendingFiles(){
     const remove=document.createElement('button');remove.type='button';remove.title=`移除 ${file.name}`;remove.setAttribute('aria-label',remove.title);remove.textContent='×';
     remove.disabled=(submitting||streaming)&&!uploading;remove.onclick=()=>removePendingFile(file);chip.appendChild(remove);box.appendChild(chip);
   });
-  if(pendingFiles.some(file=>fileUploads.get(file).manifest?.modality==='image')&&currentLLMModel!=='MiniMax-M3'&&llmModels.includes('MiniMax-M3')){
-    const choose=document.createElement('button');choose.type='button';choose.className='chip small image-model-choice';choose.textContent='用 MiniMax-M3 看图';choose.disabled=streaming||submitting||uploading||changingModel;
-    choose.onclick=()=>selectLLMModel('MiniMax-M3').then(renderPendingFiles).catch(reportError);box.appendChild(choose);
+  if(needsModel){
+    const model=llmModels.find(name=>modelCapabilities[name]?.image_input);
+    const choose=document.createElement('button');choose.type='button';choose.className='chip small image-model-choice';choose.textContent=model?'用 '+model+' 看图':'选择看图模型';choose.disabled=streaming||submitting||uploading||changingModel;
+    choose.onclick=()=>model?selectLLMModel(model).then(renderPendingFiles).catch(reportError):$('#llmSelector').click();box.appendChild(choose);
   }
   autosize();
 }
@@ -897,6 +899,7 @@ function renderArtifactDetail(a){
   if(a.kind==='prediction'&&a.summary?.method==='model_inference')h+=`<div class="prediction-card" style="margin-top:8px">${predictionSummary(a.summary)}</div>`;
   if(a.kind==='table'||a.kind==='report')h+=`<div style="margin-top:8px"><a class="dl" href="/artifacts/${esc(a.artifact_id)}/file${a.kind==='report'?'?download=1':''}" target="_blank"><span class="ms sm">download</span>下载 ${esc((a.summary?.format||(markdownReport?'md':'文件')).toUpperCase())}</a></div>`;
   if(['normalized_signal','windows','features','aggregate','prediction','emotion_assessment'].includes(a.kind))h+=`<div class="artifact-download"><a class="dl" href="/artifacts/${esc(a.artifact_id)}/file" download><span class="ms sm">download</span>下载${esc(artifactTitle(a))}</a></div>`;
+  if(a.summary?.format==='signal_edf'&&a.representations?.json)h+=`<a class="chip small" href="/artifacts/${esc(a.artifact_id)}/file?format=json&download=1" download>采样范围与元数据 JSON</a>`;
   if(markdownReport)h+=`<details class="report-preview"><summary><span class="ms">chevron_right</span>阅读报告</summary><div class="md report-text">加载中…</div></details>`;
   if(a.kind==='plot'){
     h+=`<div class="thumb"><img src="/artifacts/${esc(a.artifact_id)}/file" alt="${esc(artifactTitle(a))}" onclick="lightbox(this.src)"></div>`;
@@ -992,6 +995,7 @@ async function send(options={}){
     if(failed)throw new Error(`${failed.name} 上传失败，请点击附件上的重试：${fileUploads.get(failed).error}`);
     if(!retry&&!draft&&!submitted.length&&!references.length)return;
     const attached=submitted.map(file=>fileUploads.get(file).manifest).filter(Boolean);
+    if(!await ensureImageModel(attached))return;
     if(submitted.length&&!attached.length)throw new Error('附属文件已保存；请添加对应的头文件，组成可读取的脑电记录后再发送。');
     const imagesOnly=attached.length>0&&attached.every(manifest=>manifest.modality==='image');
     const text=retry?'':draft||(imagesOnly?'请解释本次上传的图片，结合图中的标题、坐标、图例和关键变化回答。':references.length?'请检查本次引用的数据，概述结构和质量并建议下一步分析。':'请检查本次上传的数据，概述结构和质量并建议下一步分析。');
@@ -1083,20 +1087,28 @@ async function runSlashCommand(value){
 }
 
 /* ---------- conversation model selection ---------- */
-function setConversationModel(name){currentLLMModel=name;$('#composerModel').textContent=name;$('#llmSelector').title='切换对话模型：'+name;$('#connChip').title='对话模型：'+name}
+function hasImageInput(attached=[]){return manifests.some(item=>item.modality==='image')||attached.some(item=>item.modality==='image')||pendingFiles.some(file=>fileUploads.get(file).manifest?.modality==='image')}
+async function ensureImageModel(attached){
+  if(!hasImageInput(attached))return true;
+  if(!llmModels.length)await loadLLMModels();
+  if(modelCapabilities[currentLLMModel]?.image_input)return true;
+  $('#llmSearch').value='';$('#llmPicker').showPopover();renderLLMModels();$('#llmSearch').focus();
+  snack('选择看图模型后发送图片');return false;
+}
+function setConversationModel(name){currentLLMModel=name;$('#composerModel').textContent=name;$('#llmSelector').title='切换对话模型：'+name;$('#connChip').title='对话模型：'+name;renderPendingFiles()}
 function renderLLMModels(){
   const query=$('#llmSearch').value.trim().toLowerCase(),box=$('#llmOptions');box.replaceChildren();
-  const models=llmModels.filter(model=>model.toLowerCase().includes(query));
+  const models=llmModels.filter(model=>model.toLowerCase().includes(query)&&(!hasImageInput()||modelCapabilities[model]?.image_input));
   if(!models.length){box.innerHTML='<div class="llm-empty">没有匹配的模型</div>';return}
   for(const model of models){
     const button=document.createElement('button');button.className='llm-option';button.dataset.model=model;button.setAttribute('role','option');button.setAttribute('aria-selected',String(model===currentLLMModel));
-    button.innerHTML=`<span class="llm-name">${esc(model)}</span><span class="llm-tail">${model===defaultLLMModel?'<span class="llm-default">默认</span>':''}${model===currentLLMModel?'<span class="ms">check_circle</span>':''}</span>`;
+    button.innerHTML=`<span class="llm-name">${esc(model)}</span><span class="llm-tail">${modelCapabilities[model]?.image_input?'<span class="llm-default">看图</span>':''}${model===defaultLLMModel?'<span class="llm-default">默认</span>':''}${model===currentLLMModel?'<span class="ms">check_circle</span>':''}</span>`;
     button.onclick=()=>selectLLMModel(model).catch(reportError);box.appendChild(button);
   }
 }
 async function loadLLMModels(){
   const box=$('#llmOptions');box.innerHTML='<div class="llm-empty">读取模型…</div>';
-  try{const result=await api('/llm/models');llmModels=result.models;defaultLLMModel=result.default_model||'';renderLLMModels()}
+  try{const result=await api('/llm/models');llmModels=result.models;modelCapabilities=result.capabilities||{};defaultLLMModel=result.default_model||'';renderLLMModels();renderPendingFiles()}
   catch(error){box.replaceChildren();const text=document.createElement('div');text.className='llm-empty';text.textContent=error.message;box.appendChild(text)}
 }
 async function selectLLMModel(model){

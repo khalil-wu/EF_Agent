@@ -88,6 +88,7 @@ async function send(options={}){
   const version=viewVersion,id=sessionId,wasStreaming=streaming;let ownsStream=false;
   try{
     const attached=selected.length?await uploadPending():[];if(version!==viewVersion)return;
+    if(!await ensureImageModel(attached))return;
     const text=retry?'':draft||'请检查本次上传的数据，概述结构和质量并建议下一步分析。';
     const view={text,attachments:attached.map(m=>({id:m.manifest_id,name:m.original_name||m.source_path.split(/[\\/]/).pop(),modality:m.modality})),questions:answered?answered.questions.map(q=>q.question):[]};
     if(answered)view.text=Object.values(options.answers).join('\n');

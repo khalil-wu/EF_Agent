@@ -98,6 +98,8 @@ func TestUploadedImagePixelsReachTheProviderOnlyAfterMessageSubmission(t *testin
 	cfg := agent.Config{LLM: llm.New(model.URL, "", "vision-fixture"), SystemFn: func(*agent.Session) string { return "system" }, FileCtxFn: func(*agent.Session) string { return "context" }}
 	storage := t.TempDir()
 	s := New(cfg, worker.New(backend.URL), storage)
+	s.ModelName = "vision-fixture"
+	s.ModelCapabilities = map[string]llm.ModelCapability{"vision-fixture": {ImageInput: true}}
 	handler := s.Routes()
 	id := create(t, handler)
 	upload := func(name string) string {

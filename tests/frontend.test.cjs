@@ -254,7 +254,7 @@ test('question cards advance one at a time, retain answers on back navigation an
 
 function attachmentRuntime(session='session-one'){
  const elements=new Map(),requests=[],messages=[],users=[],notices=[],apiCalls=[];
- function node(){const value=transcriptNode();Object.assign(value,{style:{},value:'',scrollHeight:30,disabled:false,attributes:{},focus(){this.focused=true},setAttribute(name,text){this.attributes[name]=text},append(...children){children.forEach(child=>this.appendChild(child))},replaceChildren(...children){this.children=[];this.append(...children)}});return value}
+ function node(){const value=transcriptNode();Object.assign(value,{style:{},value:'',scrollHeight:30,disabled:false,attributes:{},showPopover(){this.open=true},focus(){this.focused=true},setAttribute(name,text){this.attributes[name]=text},append(...children){children.forEach(child=>this.appendChild(child))},replaceChildren(...children){this.children=[];this.append(...children)}});return value}
  const element=selector=>{if(!elements.has(selector))elements.set(selector,node());return elements.get(selector)};
  class MockFormData{constructor(){this.fields=new Map()}append(name,value){this.fields.set(name,value)}}
  class MockXHR{
@@ -265,6 +265,7 @@ function attachmentRuntime(session='session-one'){
   complete(response,status=200){this.response=response;this.status=status;this.onload()}
  }
  const runtime={fileMentions:{save(){},restore(){},clear(){},references:()=>[],update(){}},currentWorkspaceID:'',sessionId:session,viewVersion:0,pendingFiles:[],pendingFilesBySession:new Map(),fileUploads:new WeakMap(),uploadTask:null,uploading:false,submitting:false,navigating:false,streaming:false,stopRequested:false,changingModel:false,creating:null,streamController:null,pendingInput:null,currentTitle:'',currentParent:'',currentLLMModel:'test',mode:'readonly',trashView:false,requestFailure:'',followBottom:true,liveCursor:null,eventTraces:new Map(),
+  manifests:[],llmModels:['test'],modelCapabilities:{test:{image_input:true}},renderLLMModels(){},
   $:element,$$:()=>[],document:{createElement:node},FormData:MockFormData,XMLHttpRequest:MockXHR,AbortController,crypto:{randomUUID:()=>require('node:crypto').randomUUID()},
   updateCommands(){},updateSessionListHeader(){},rememberSession(){},resetSourceView(){},resetAttachmentView(){},resetView(){},setConversationModel(){},setActiveSkill(){},renderSession(){},watchSession(){},setConn(){},restoreStatus(){},refreshSessions:async()=>{},
   snack:text=>notices.push(text),reportError:error=>notices.push(error.message),traceEv:()=>({className:'ev run',querySelector:()=>node()}),traceDetail(){},addManifest(manifest){runtime.committed.push(manifest)},committed:[],
@@ -272,6 +273,7 @@ function attachmentRuntime(session='session-one'){
   api:async(url,options={})=>{apiCalls.push({url,method:options.method||'GET'});if(url==='/sessions'&&options.method==='POST')return runtime.createResponse?await runtime.createResponse:{session_id:'created-session',llm_model:'test'};const id=url.split('/')[2],files=runtime.pendingFilesBySession.get(id)||[];return {session_id:id,manifests:[],staged_manifests:files.map(file=>runtime.fileUploads.get(file).manifest).filter(Boolean),running:false}},
   fetch:async(url,options)=>{messages.push({url,body:JSON.parse(options.body)});return {ok:runtime.messageOK!==false,status:200,json:async()=>({error:'message failed'})}},
  };
+ vm.runInNewContext(source.slice(source.indexOf('function hasImageInput('),source.indexOf('function setConversationModel(')),runtime);
  vm.runInNewContext(source.slice(source.indexOf('function autosize('),source.indexOf('async function api(')),runtime);
  vm.runInNewContext(source.slice(source.indexOf('function leaveView('),source.indexOf('function rememberSession(')),runtime);
  vm.runInNewContext(source.slice(source.indexOf('async function newSession('),source.indexOf('async function refreshSessions(')),runtime);
@@ -329,6 +331,38 @@ test('restored prepared drafts submit their real IDs without uploading again',as
  assert.equal(r.pendingFiles.length,1);assert.equal(chip(r.pendingFiles[0]).children[1].textContent,'已读入');
  element('#input').value='继续分析';await r.send();
  assert.equal(requests.length,0);assert.deepEqual(messages[0].body.attachments,['sig_saved']);
+});
+
+test('image drafts wait for an explicit capable model selection and retain the composer',async()=>{
+ const {runtime:r,element,messages,users}=attachmentRuntime();
+ r.modelCapabilities={vision:{image_input:true}};r.llmModels=['test','vision'];
+ r.restorePendingFiles({session_id:'session-one',staged_manifests:[attachmentManifest('img_draft','脑电图.png','image')]});
+ const draft='解释这张图的坐标与曲线';element('#input').value=draft;
+ await r.send();
+ assert.equal(messages.length,0);assert.equal(users.length,0);assert.equal(r.currentLLMModel,'test');
+ assert.equal(element('#input').value,draft);assert.equal(r.pendingFiles.length,1);
+ assert.equal(element('#llmPicker').open,true);assert.equal(r.submitting,false);assert.equal(r.streaming,false);
+ r.currentLLMModel='vision';
+ await r.send();
+ assert.equal(messages.length,1);assert.deepEqual(messages[0].body.attachments,['img_draft']);
+ assert.equal(messages[0].body.text,draft);assert.equal(r.pendingFiles.length,0);assert.equal(element('#input').value,'');
+});
+
+test('image follow-ups keep the current draft when a restored conversation uses a text model',async()=>{
+ const {runtime:r,element,messages}=attachmentRuntime();
+ r.manifests=[attachmentManifest('img_committed','图.png','image')];r.modelCapabilities={};
+ element('#input').value='左下角是什么？';await r.send();
+ assert.equal(messages.length,0);assert.equal(element('#input').value,'左下角是什么？');
+ assert.equal(r.currentLLMModel,'test');assert.equal(element('#llmPicker').open,true);
+});
+
+test('a restored image conversation loads model capabilities before deciding whether to send',async()=>{
+ const {runtime:r,element,messages}=attachmentRuntime();
+ r.manifests=[attachmentManifest('img_restored','图.png','image')];r.llmModels=[];r.modelCapabilities={};
+ let loaded=false;r.loadLLMModels=async()=>{loaded=true;r.llmModels=['test'];r.modelCapabilities={test:{image_input:true}}};
+ element('#input').value='解释横坐标';await r.send();
+ assert.equal(loaded,true);assert.equal(messages.length,1);assert.equal(r.currentLLMModel,'test');
+ assert.equal(element('#llmPicker').open,undefined);
 });
 
 test('removing a restored draft deletes its server staging record',async()=>{

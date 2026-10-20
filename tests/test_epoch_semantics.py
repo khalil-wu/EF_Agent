@@ -161,8 +161,9 @@ def test_epoched_export_carries_event_relative_coordinates(epoched):
     assert float(second["epoch_start_s"]) == pytest.approx(-.2)
 
 
-def test_native_epoch_skill_recipe_runs_in_the_real_sandbox(epoched):
+def test_native_epoch_skill_recipe_runs_in_the_real_sandbox(epoched, commit_session):
     manifest, _, _, _ = epoched
+    commit_session("epoch_recipe", [manifest])
     path = Path(__file__).resolve().parents[1] / "skills" / "eeg_toolboxes" / "references" / "api.md"
     blocks = re.findall(r"```python\n(.*?)```", path.read_text(encoding="utf-8"), flags=re.S)
     recipe = next(block for block in blocks if "eeg.to_epochs" in block).replace("SOURCE_ID", manifest["manifest_id"])

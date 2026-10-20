@@ -73,11 +73,12 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "output_schema": {"type": "object"}, **_RO,
     },
     {
-        "name": "read_file", "version": "1.1",
+        "name": "read_file", "version": "1.2",
         "description": "按行读取文本、CSV 表头、脚本或 scratch 输出。相对路径基于当前工作区。二进制数据用 inspect_record，文档正文用 read_document。",
         "input_schema": {"type": "object", "properties": {
             "path": {"type": "string"}, "offset": {"type": "integer", "default": 1, "description": "起始行，从 1 起"},
-            "limit": {"type": "integer", "default": 200}}, "required": ["path"]},
+            "limit": {"type": "integer", "default": 200},
+            "char_offset": {"type": "integer", "default": 0, "description": "超长行的行内字符位置；续读采用返回的 next_offset 和 next_char_offset"}}, "required": ["path"]},
         "output_schema": {"type": "object"}, **_RO,
     },
     {
@@ -302,7 +303,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "output_schema": {"type": "object"}, **_RO,
     },
     {
-        "name": "export", "version": "3.4",
+        "name": "export", "version": "3.5",
         "description": "特征、窗口、候选区间或脚本数据表导出CSV/JSON，信号导出CSV/EDF，图导出PNG/SVG/PDF。kind=python从真实原生处理产物追溯参数并生成可运行.py，以eeg.call复用同版本工具；需要复现脚本时直接导出。特征CSV保存逐窗特征；PSD数组用read_artifact读取。",
         "input_schema": {"type": "object", "properties": {"kind": {"type": "string", "enum": ["csv", "json", "signal_csv", "signal_edf", "png", "svg", "pdf", "python"]}, "source_id": {"type": "string"}}, "required": ["kind", "source_id"]},
         "output_schema": {"type": "object"}, **_RO,
@@ -421,7 +422,7 @@ DISPATCH: dict[str, Callable[..., dict]] = {
     "workspace_quality": lambda a, sid: workspace_quality(a["workspace_id"],sid,a.get("pattern"),a.get("path",""),a.get("sample_rate_hz")),
     "workspace_files": lambda a, sid: workspace_files(a, a.get("workspace_id")),
     "list_files": lambda a, sid: list_files(a.get("pattern"), a.get("kind", "eeg"), a.get("root"), a.get("limit", 50), True, sid),
-    "read_file": lambda a, sid: read_file(a["path"], a.get("offset", 1), a.get("limit", 200), sid, a.get("workspace_id")),
+    "read_file": lambda a, sid: read_file(a["path"], a.get("offset", 1), a.get("limit", 200), sid, a.get("workspace_id"), a.get("char_offset", 0)),
     "write_file": lambda a, sid: write_file(a.get("workspace_id"), a["path"], a["content"], a.get("overwrite", False)),
     "edit_file": lambda a, sid: edit_file(a.get("workspace_id"), a["path"], a["old_text"], a["new_text"], a.get("replace_all", False)),
     "save_to_workspace": lambda a, sid: save_to_workspace(a.get("workspace_id"), a["artifact_id"], a["path"], a.get("overwrite", False)),
@@ -460,6 +461,15 @@ DISPATCH: dict[str, Callable[..., dict]] = {
 
 
 def run_tool(name: str, args: dict) -> dict:
+    # Gateway registration reads the newly uploaded file before it belongs to the conversation.
+    if name in {"register_upload", "register_attachment"}:
+        return _run_tool(name, args)
+    from eegagent.worker.files import access_scope
+    with access_scope(args.get("_session_id"), args.get("_workspace_id")):
+        return _run_tool(name, args)
+
+
+def _run_tool(name: str, args: dict) -> dict:
     if name not in DISPATCH:
         raise KeyError(f"unknown tool: {name}")
     args = dict(args or {})

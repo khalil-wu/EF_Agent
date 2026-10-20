@@ -39,9 +39,10 @@ def _event_data():
     return data, sr, names, [(float(t), 0.0, lab) for t, lab in zip(t_ev, labels)]
 
 
-def test_skill_recipes_run_in_sandbox(storage: Path):
+def test_skill_recipes_run_in_sandbox(storage: Path, commit_session):
     data, sr, names, ann = _event_data()
     m = inspect_record(str(save_set(storage / "uploads" / "erp.set", data, sr, names, annotations=ann)))
+    commit_session("ses_recipes", [m])
     assert len(m["events"]) == len(ann)
     assert "reference=api.md" in SKILL.read_text(encoding="utf-8")
     recipes = SKILL.parent / "references" / "api.md"

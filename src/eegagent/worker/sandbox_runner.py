@@ -1,7 +1,7 @@
 """Subprocess entry for run_python. Installs an audit-hook sandbox, preloads `eeg`, executes the script.
 
 Sandbox rules (best effort, process-local):
-  - reads: only under READ_ROOTS (storage, data dirs, scratch), the Python installation and system fonts
+  - reads: session inputs/products, current workspace, configured data dirs, scratch, Python and fonts
   - direct writes: this session's scratch, artifacts dir, matplotlib cache and tmp
   - eeg.call: native local tools save manifests; file tools write the selected workspace
   - no sockets, no subprocesses, no os.system/exec/fork, no webbrowser
@@ -42,6 +42,7 @@ def _under(p: str, roots) -> bool:
 READ_ROOTS = [_norm(r) for r in cfg["read_roots"]]
 WRITE_ROOTS = [_norm(r) for r in cfg["write_roots"]] + [_norm(os.environ["MPLCONFIGDIR"]), _norm(TMP)]
 TOOL_WRITE_ROOTS: list[str] = []
+TOOL_READ_ROOTS: list[str] = []
 LIB_ROOTS = {_norm(p) for p in [sys.prefix, sys.base_prefix, sys.exec_prefix, *sys.path, os.path.dirname(os.__file__), cfg["src_dir"]] if p}
 for extra in ("C:\\Windows\\Fonts", "/usr/share/fonts", "/usr/local/share/fonts", "/Library/Fonts", "/System/Library/Fonts",
               os.path.expanduser("~/AppData/Local/Microsoft/Windows/Fonts"),
@@ -80,7 +81,8 @@ def _hook(event: str, args):
         if writing:
             if not _under(p, WRITE_ROOTS + TOOL_WRITE_ROOTS):
                 raise PermissionError(f"sandbox: 只能写入本会话的 scratch 或通过 eeg.save_* 保存产物，拒绝写 {path}")
-        elif not (_under(p, READ_ROOTS) or _under(p, WRITE_ROOTS) or _under(p, LIB_ROOTS)):
+            READ_ROOTS.append(p)
+        elif not (_under(p, READ_ROOTS + TOOL_READ_ROOTS) or _under(p, LIB_ROOTS)):
             raise PermissionError(f"sandbox: 路径不在允许的数据目录内，拒绝读取 {path}")
     elif event in BLOCKED_EVENTS or event.startswith("socket.") or event.startswith("subprocess."):
         raise PermissionError(f"sandbox: {event} 不允许（脚本内不能联网、不能起子进程）")
@@ -101,15 +103,20 @@ sys.addaudithook(_hook)
 
 def _call_local_tool(name, arguments):
     """Native tools persist their own manifests; ordinary script writes keep the existing roots."""
-    global TOOL_WRITE_ROOTS
+    global TOOL_WRITE_ROOTS, TOOL_READ_ROOTS
     from eegagent.worker.tools import run_tool
     TOOL_WRITE_ROOTS = [_norm(root) for root in cfg["tool_write_roots"]]
+    TOOL_READ_ROOTS = [_norm(root) for root in cfg["tool_write_roots"]] + [_norm(os.path.join(cfg["storage_dir"], "artifacts"))]
     if name in {"write_file", "edit_file", "save_to_workspace"} and cfg.get("workspace_root"):
         TOOL_WRITE_ROOTS.append(_norm(cfg["workspace_root"]))
     try:
-        return run_tool(name, arguments)
+        result = run_tool(name, arguments)
+        for record in [*result.get("manifests", []), *([result["manifest"]] if result.get("manifest") else [])]:
+            READ_ROOTS.extend(_norm(path) for path in [record.get("source_path"), record.get("vision_path"), os.path.join(cfg["storage_dir"], "manifests", record["manifest_id"]+".json")] if path)
+        return result
     finally:
         TOOL_WRITE_ROOTS = []
+        TOOL_READ_ROOTS = []
 
 
 def _write_result(value):
@@ -133,6 +140,7 @@ try:
     from eegagent.worker.sandbox_api import EEGApi
     from eegagent.worker.outputs import _mpl
     from eegagent.worker.progress import channel
+    from eegagent.worker.files import access_scope
 
     _mpl()  # Shared scientific style applies to native pyplot, MNE and eeg.figure.
 
@@ -141,7 +149,7 @@ try:
     code = open(cfg["code_path"], encoding="utf-8").read()
     g = {"__name__": "__main__", "__file__": cfg["code_path"], "eeg": api}
     with open(cfg["progress_path"], "a", encoding="utf-8", buffering=1) as events:
-        with channel(lambda event: events.write(json.dumps(event, ensure_ascii=False) + "\n")):
+        with channel(lambda event: events.write(json.dumps(event, ensure_ascii=False) + "\n")), access_scope(cfg["session_id"], cfg.get("workspace_id")):
             try:
                 exec(compile(code, cfg["code_path"], "exec"), g)
                 result["ok"] = True

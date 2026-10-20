@@ -75,6 +75,7 @@ def save_model_prediction(windows_id: str, outputs, model: dict, output: dict, *
     summary = {
         "method": "model_inference", "model_id": model["model_id"], "model_version": model["model_version"],
         "run_id": run_id, "task": model["task"], "output_kind": kind,
+        "model_evaluation": model.get("evaluation", {"status": "not_recorded"}),
         "source_id": payload_w["source"], "windows_id": windows_id, "time_axis": context["time_axis"],
         "coverage": coverage, "calibration": output.get("calibration", {"status": "unknown"}),
         "aggregation": aggregation, "prediction_count": len(rows), "prediction_preview": rows[:8],

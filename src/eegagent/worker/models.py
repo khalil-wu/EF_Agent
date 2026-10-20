@@ -10,6 +10,15 @@ from eegagent.worker.labels import label_definitions
 EXECUTABLE_MODELS: frozenset[str] = frozenset({"eav_eegnet_emotion5_loso_fold0", "camer_eav_photo_fixed_fold0", "camer_deap_fixed_1s_fold0"})
 
 
+def model_evaluation(model: dict) -> dict:
+    recorded = model.get("evaluation", {})
+    selection = model.get("checkpoint_selection") or recorded.get("checkpoint_selection")
+    status = "test_selected" if selection == "test_accuracy" else recorded.get("status", "not_recorded")
+    return {"status": status, "checkpoint_selection": selection,
+            "split_protocol": model.get("split_protocol"), "metrics": recorded.get("metrics", model.get("metrics")),
+            "independent_test": recorded.get("independent_test", False) if status != "test_selected" else False}
+
+
 def paired_video_context(video: dict | None, video_role: str = "unknown",
                          sync_offset_s: float | None = None) -> dict:
     """Resolve the pair's existing user-confirmed facts and explicit call context."""
@@ -54,6 +63,7 @@ def list_models(task: str | None = None, registry: dict | None = None) -> dict:
             "label_definitions": label_definitions(model.get("label_map", [])),
             "model_version": model.get("model_version"), "limitations": model.get("limitations", []),
             "status": model.get("status"), "availability": availability,
+            "execution_ready": not blockers, "evaluation": model_evaluation(model),
             "inference_available": not blockers, "blockers": blockers,
         })
     return {"status": "ok", "models": rows}
@@ -133,7 +143,9 @@ def route_model(task: str, manifest: dict, video: dict | None = None,
             "prediction_window_count": len(plan["windows"]) if plan else None,
         })
     rank = {"ready": 0, "needs_preparation": 1, "needs_context": 2, "unavailable": 3, "incompatible": 4}
-    candidates.sort(key=lambda row: (rank[row["route_status"]], len(row["missing_context"]), row["model_id"]))
+    candidates.sort(key=lambda row: (rank[row["route_status"]],
+        0 if row["evaluation"]["independent_test"] else 2 if row["evaluation"]["status"] == "test_selected" else 1,
+        len(row["missing_context"]), row["model_id"]))
     selected = next((row["model_id"] for row in candidates if row["route_status"] == "ready" and
                      (video is None or model_id is not None or "face_video" in row["modalities"])), None)
     return {

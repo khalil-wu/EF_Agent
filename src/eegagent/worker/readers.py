@@ -133,6 +133,11 @@ def record_files(path: Path, source_files=()) -> list[Path]:
     return list(dict.fromkeys(file for file in files if file.is_file()))
 
 
+def source_signature(path: Path, source_files=()) -> list[dict]:
+    files = sorted(p for p in path.rglob("*") if p.is_file()) if path.is_dir() else record_files(path, source_files)
+    return [{"path": str(p.resolve()), "size": p.stat().st_size, "mtime_ns": p.stat().st_mtime_ns} for p in files]
+
+
 def content_sha(path: Path, source_files=()) -> str:
     """Local content identity, including sidecars; never an authentication of dataset origin."""
     h = hashlib.sha256()

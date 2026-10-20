@@ -81,8 +81,9 @@ def test_mat_trials_use_sample_channel_trial_axes_and_sidecar_mode(native):
     assert trial_record["shape"] == [1]
 
 
-def test_run_model_stores_real_contract_outputs_and_exact_input_tensor(native, monkeypatch):
+def test_run_model_stores_real_contract_outputs_and_exact_input_tensor(native, monkeypatch, commit_session):
     manifest, original = native
+    commit_session("ses_model_test", [manifest])
     returned_inputs = np.random.default_rng(4).normal(size=(4, 1, 30, 640)).astype(np.float32)
     returned_logits = np.array([[1, 2, 3, 4, 5], [5, 1, 2, 3, 4], [1, 5, 2, 3, 4], [1, 2, 5, 3, 4]], dtype=np.float32)
 
@@ -131,7 +132,7 @@ def test_selected_range_cannot_shift_original_trial_boundary(native):
         run_tool("run_model", {"source_id": manifest["manifest_id"], "model_id": MODEL_ID, "start_s": 5, "end_s": 20})
 
 
-def test_stop_terminates_model_transport_process(native, monkeypatch):
+def test_stop_terminates_model_transport_process(native, monkeypatch, commit_session):
     manifest, _ = native
     started = Event()
 
@@ -141,6 +142,7 @@ def test_stop_terminates_model_transport_process(native, monkeypatch):
 
     monkeypatch.setattr(remote_model, "_remote_infer", infer)
     sid = "ses_cancel_model"
+    commit_session(sid, [manifest])
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(run_tool, "run_model", {"source_id": manifest["manifest_id"], "model_id": MODEL_ID,
                                                     "_session_id": sid})

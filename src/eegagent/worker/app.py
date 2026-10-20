@@ -16,7 +16,9 @@ Endpoints
 from __future__ import annotations
 
 import traceback
+import os
 import json
+from pathlib import Path
 from queue import Queue
 from typing import Literal
 from threading import Thread
@@ -183,14 +185,17 @@ def _startup() -> None:
 
 @app.get("/health")
 def health() -> dict:
+    identity = {"application": "EFAgent", "component": "worker", "build_id": os.environ.get("EEGAGENT_WORKER_BUILD_ID", os.environ.get("EEGAGENT_BUILD_ID", "development")),
+                "configuration_id": os.environ.get("EEGAGENT_WORKER_CONFIG_ID", ""), "process_id": os.getpid(),
+                "source_root": str(Path(__file__).resolve().parents[3]), "storage_dir": str(ensure_layout().resolve())}
     capabilities = {"clean_artifacts": CLEANING_METHODS,
                     "unavailable_cleaning_methods": {method: missing for method, missing in CLEANING_MISSING.items() if missing}}
     try:
         ks = knowledge.index().stats()
     except Exception as exc:  # noqa: BLE001
-        return {"status": "degraded", "tools": [t["name"] for t in TOOL_DEFINITIONS],
+        return {**identity, "status": "degraded", "tools": [t["name"] for t in TOOL_DEFINITIONS],
                 "knowledge": {"status": "error", "message": str(exc)}, "capabilities": capabilities}
-    return {"status": "ok", "tools": [t["name"] for t in TOOL_DEFINITIONS], "knowledge": ks,
+    return {**identity, "status": "ok", "tools": [t["name"] for t in TOOL_DEFINITIONS], "knowledge": ks,
             "capabilities": capabilities}
 
 

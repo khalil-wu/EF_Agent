@@ -252,7 +252,8 @@ func TestCompactPreservesClassificationAndRegressionContracts(t *testing.T) {
 			}
 			summary := map[string]any{
 				"method": "model_inference", "model_id": "emotion_eeg_v1", "model_version": "1.2", "run_id": "run_eeg_1",
-				"task": "emotion_recognition", "output_kind": tc.outputKind, "calibration": tc.calibration,
+				"model_evaluation": map[string]any{"status": "test_selected", "independent_test": false},
+				"task":             "emotion_recognition", "output_kind": tc.outputKind, "calibration": tc.calibration,
 				"source_id": "sig_123456", "windows_id": "art_234567", "time_axis": "epoch-relative",
 				"coverage":    map[string]any{"complete": true, "covered_duration_s": 12},
 				"aggregation": nil, "prediction_count": 12, "prediction_preview": preview,
@@ -286,7 +287,7 @@ func TestCompactPreservesClassificationAndRegressionContracts(t *testing.T) {
 				if err := json.Unmarshal(projected, &view); err != nil {
 					t.Fatal(err)
 				}
-				for _, key := range []string{"method", "model_id", "model_version", "run_id", "task", "output_kind", "score_kind", "calibration", "labels", "label_counts", "dimensions", "aggregation", "prediction_count", "source_id", "windows_id", "time_axis", "coverage"} {
+				for _, key := range []string{"method", "model_id", "model_version", "model_evaluation", "run_id", "task", "output_kind", "score_kind", "calibration", "labels", "label_counts", "dimensions", "aggregation", "prediction_count", "source_id", "windows_id", "time_axis", "coverage"} {
 					if string(view.Summary[key]) != string(source.Summary[key]) {
 						t.Fatalf("changed model output contract field %s: %s", key, projected)
 					}

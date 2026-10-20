@@ -6,6 +6,7 @@
 *.local.yaml
 *.local.yml
 *.local.css
+*.local.json
 /frontend/bridge/fonts/
 /gateway/internal/server/static/fonts/
 *.pem
@@ -21,6 +22,7 @@
 /knowledge/references/
 /knowledge/papers/
 /knowledge/graph/extracted/
+/knowledge/.index-revision
 /research/upstream/
 
 # Dependencies and build caches

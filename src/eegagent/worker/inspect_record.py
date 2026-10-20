@@ -13,7 +13,7 @@ import numpy as np
 
 from eegagent.worker.channels import eeg_indices
 from eegagent.worker.files import resolve_inside_roots
-from eegagent.worker.readers import SUPPORTED, content_sha, file_ext, inferred, infer_unit, read_record, record_files, resolve_main_file  # noqa: F401
+from eegagent.worker.readers import SUPPORTED, content_sha, file_ext, inferred, infer_unit, read_record, record_files, resolve_main_file, source_signature  # noqa: F401
 from eegagent.worker.registry import check_model_compat, known_ten_twenty
 from eegagent.worker.store import save_manifest
 
@@ -114,6 +114,7 @@ def inspect_record(path: str, sample_rate_hz: float | None = None, channel_names
         "manifest_id": f"sig_{uuid.uuid4().hex[:8]}",
         "modality": "eeg",
         "attachment_sha256": content_sha(file_path, rec.source_files),
+        "source_signature": source_signature(file_path, rec.source_files),
         "source_path": str(file_path),
         "original_name": file_path.name,
         "source_files": [str(file) for file in record_files(file_path, rec.source_files)],

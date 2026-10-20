@@ -33,7 +33,9 @@ $env:EFAGENT_LLM_API_KEY = "your-api-key"
 & .\scripts\start.ps1
 ```
 
-脚本在后台启动 worker 和网关，自动打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。已运行的服务会直接复用。数据、会话与产物保存在本地 `storage/`，启动日志位于 `storage/logs/`。
+脚本在后台启动 worker 和网关，自动打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。相同版本和配置会复用；代码或配置变化后，只更新需要重启的组件。有分析运行时继续保留现有进程，结束后再次运行命令即可更新。数据、会话与产物保存在本地 `storage/`，启动日志位于 `storage/logs/`。
+
+图片问答需在选择器中选用标有“看图”的模型；能力配置见 `configs/conversation_models.json`。本机配置可通过 `start.ps1 -Config C:\path\settings.local.ps1` 加载，数据目录可以独立于代码目录保存。
 
 ## 开发
 
@@ -43,8 +45,8 @@ $env:EFAGENT_LLM_API_KEY = "your-api-key"
 cd frontend
 npm ci
 npm run check
-npm test
 npm run build
+npm test
 ```
 
 `gateway/` 是 Go 网关，`src/eegagent/` 是 Python 计算服务，`frontend/` 是界面源码，`skills/` 与 `knowledge/` 保存领域方法和知识笔记。内部包名与旧配置仍兼容 `eegagent` / `EEGAGENT_*`。

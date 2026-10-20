@@ -85,7 +85,8 @@ def test_native_recipe_replays_cleaning_selected_trial_and_signal_export(workspa
     wrapper["provenance"]["created_by"] = f"export@{wrapper_version}"
     store.save_artifact(wrapper)
     recipe = export("python", signal_export["artifact_id"])
-    assert recipe["summary"]["tool_versions"]["export"] == "3.4"
+    from eegagent.worker.outputs import VERSION
+    assert recipe["summary"]["tool_versions"]["export"] == VERSION
     script = Path(recipe["artifact"]["uri"]).read_text(encoding="utf-8")
     assert "'trial_index': 1" in script and "'method': 'bad_channels'" in script
     result = run_python(script, "native-signal-replay", timeout_s=120, workspace_id=workspace_record["workspace_id"])

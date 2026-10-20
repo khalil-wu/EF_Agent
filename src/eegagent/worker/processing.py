@@ -628,6 +628,8 @@ def _public(record: dict) -> dict:
     """The compact artifact view returned to the model and the UI."""
     out = {k: record.get(k) for k in ("artifact_id", "kind", "uri", "media_type", "source_manifest_ids",
                                      "parent_artifact_ids", "time_range_s", "shape", "summary", "provenance")}
+    if record.get("representations"):
+        out["representations"] = record["representations"]
     if record.get("kind") == "prediction":
         provenance = record["provenance"]
         out["provenance"] = {**provenance,

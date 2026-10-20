@@ -182,6 +182,7 @@ func Run(ctx context.Context, cfg Config, s *Session, userText string, emit func
 
 	if userText != "" {
 		s.PendingInput = nil
+		s.KnowledgeQuery = ""
 		s.Messages = append(s.Messages, llm.Message{Role: "user", Content: userText, Presentation: cfg.InputPresentation})
 	}
 	checkpoint := func() error {

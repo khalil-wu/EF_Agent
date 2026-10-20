@@ -59,12 +59,16 @@ def save_manifest(manifest: dict) -> Path:
     root = ensure_layout()
     out = root / "manifests" / f"{manifest['manifest_id']}.json"
     out.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    from eegagent.worker.files import grant_files
+    grant_files([out, manifest.get("source_path"), manifest.get("vision_path"), *manifest.get("source_files", [])])
     return out
 
 
 def load_manifest(manifest_id: str) -> dict:
     root = ensure_layout()
     path = root / "manifests" / f"{manifest_id}.json"
+    from eegagent.worker.files import scoped_metadata
+    scoped_metadata(path)
     if not path.exists():
         raise FileNotFoundError(f"unknown manifest_id: {manifest_id}")
     return json.loads(path.read_text(encoding="utf-8"))
@@ -96,11 +100,15 @@ def save_artifact(record: dict) -> dict:
     record["provenance"].setdefault("steps", [])
     out = ensure_layout() / "artifacts" / f"{record['artifact_id']}.json"
     out.write_text(json.dumps(record, ensure_ascii=False, indent=2, default=_json_default), encoding="utf-8")
+    from eegagent.worker.files import grant_files
+    grant_files([out, record["uri"], *(value["uri"] for value in record.get("representations", {}).values())])
     return record
 
 
 def load_artifact(artifact_id: str) -> dict:
     path = ensure_layout() / "artifacts" / f"{artifact_id}.json"
+    from eegagent.worker.files import scoped_metadata
+    scoped_metadata(path)
     if not path.exists():
         raise FileNotFoundError(f"unknown artifact_id: {artifact_id}")
     return json.loads(path.read_text(encoding="utf-8"))

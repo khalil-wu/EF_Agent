@@ -82,6 +82,8 @@ const ExecutionDetails=(()=>{
       }
       case 'run_model':case 'recognize_emotion':case 'route_model':case 'check_model_compat':
         add(method,'模型',summary.model_id||result.selected_model||args.model_id);add(method,'模型版本',summary.model_version);
+        add(method,'评估记录',({test_selected:'历史探索权重：按测试集选模',independent_test:'独立测试集评估',not_recorded:'独立评估未登记'})[summary.model_evaluation?.status]);
+        add(method,'评估划分',summary.model_evaluation?.split_protocol);
         add(method,'分数类型',({logits:'原始模型分数（logits）',probabilities:'类别概率'})[summary.score_kind]);
         add(input,'请求试次上限',args.max_trials);add(input,'视频',manifests.find(item=>item.manifest_id===args.video_manifest_id)?.original_name);
         add(method,'视频用途',({face:'面部录像',stimulus:'刺激材料',unknown:'尚未确认'})[args.video_role]);add(method,'同步偏移',seconds(args.sync_offset_s));break;
