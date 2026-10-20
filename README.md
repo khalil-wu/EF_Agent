@@ -19,22 +19,21 @@ python -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install -e ".[worker,toolbox,knowledge]"
 ```
 
-第一个终端启动计算服务：
-
-```powershell
-& .\scripts\serve.ps1 -Component worker
-```
-
-第二个终端配置兼容 OpenAI Chat Completions 的对话模型，再启动网关：
+首次在 PowerShell 中配置兼容 OpenAI Chat Completions 的对话模型：
 
 ```powershell
 $env:EFAGENT_LLM_BASE_URL = "https://api.openai.com/v1"
 $env:EFAGENT_LLM_MODEL = "your-model"
 $env:EFAGENT_LLM_API_KEY = "your-api-key"
-& .\scripts\serve.ps1 -Component gateway
 ```
 
-打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。数据、会话与产物默认保存在本地 `storage/`。
+一个命令启动：
+
+```powershell
+& .\scripts\start.ps1
+```
+
+脚本在后台启动 worker 和网关，自动打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。已运行的服务会直接复用。数据、会话与产物保存在本地 `storage/`，启动日志位于 `storage/logs/`。
 
 ## 开发
 

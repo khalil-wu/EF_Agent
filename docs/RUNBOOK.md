@@ -19,7 +19,9 @@
 | `EFAGENT_MODEL_REGISTRY` | 模型登记文件，默认 `configs/model_registry.yaml` |
 | `EFAGENT_KNOWLEDGE_DIR` | 知识目录，默认 `knowledge/` |
 
-两个进程使用同一个 storage 和模型配置。自定义数据路径请在两个终端中都设置。停止服务使用各自终端的 Ctrl+C；进行中的分析会被中断。
+设置好环境变量后运行 `& .\scripts\start.ps1`，在后台启动两个进程并打开网页；重复运行会复用已就绪的服务。`-NoBrowser` 仅启动服务。两个进程继承同一组配置，启动日志位于 `storage/logs/`。
+
+调试时仍可分别运行 `serve.ps1 -Component worker` 和 `serve.ps1 -Component gateway`，让服务在终端前台运行；Ctrl+C 停止对应进程。
 
 ## 工作区与资料
 
