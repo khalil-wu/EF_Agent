@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>EFAgent · 脑电与人脸研究工作区</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/record-card.css">
+</head>
+<body>
+
+<main>
+  <header class="appbar">
+    <button class="icon-btn state" id="drawerBtn" title="切换侧栏 (Ctrl B)" aria-label="切换侧栏" aria-expanded="true" aria-controls="drawer"><span class="ms">view_sidebar</span></button>
+    <div class="title"><span class="title-l" id="sessionLabel">新分析</span><span class="sub" id="branchLabel" hidden>分支分析</span></div>
+    <span class="grow"></span>
+    <span class="status" id="connChip" title="LLM"><span class="dot" id="connDot"></span><span id="connText">连接中</span></span>
+    <button class="icon-btn state" id="newSession" title="新分析"><span class="ms">edit_square</span></button>
+    <button class="icon-btn state" id="sessionActions" title="当前会话操作" disabled><span class="ms">more_horiz</span></button>
+    <button class="icon-btn state" id="attachmentsBtn" title="输出与附件"><span class="ms">inventory_2</span></button>
+    <button class="panel-toggle state" id="sheetBtn" title="查看数据、结果和依据" aria-expanded="false" aria-controls="detailPanel"><span class="ms">panel_right</span><span class="panel-toggle-label">详情</span></button>
+  </header>
+
+  <div id="chat" aria-label="对话内容">
+    <div class="empty" id="empty">
+      <h1>想分析什么？</h1>
+    </div>
+  </div>
+
+  <button class="scroll-latest icon-btn" id="jumpToLatest" title="回到最新消息" hidden><span class="ms">arrow_downward</span></button>
+  <div class="composer">
+    <form class="input-request" id="inputRequest" aria-label="回答分析助手的问题" hidden>
+      <div class="input-request-head"><span class="ms">chat_bubble</span><strong id="questionTitle">确认一下</strong><span id="questionCount"></span></div>
+      <div id="inputQuestions" class="input-questions"></div>
+      <div class="input-request-footer"><span>也可以直接在下方回复</span><div class="question-actions"><button id="questionPrev" type="button" hidden>上一题</button><button id="answerSubmit" type="submit"><span id="answerSubmitLabel">提交并继续</span><span class="ms">arrow_right_alt</span></button></div></div>
+    </form>
+    <div class="command-menu" id="commandMenu" role="listbox" aria-label="命令和分析方法" hidden></div>
+    <div class="mention-menu" id="mentionMenu" role="listbox" aria-label="引用文件或文件夹" hidden></div>
+    <div class="field" id="field">
+      <div class="reference-chips" id="referenceChips" aria-label="本次引用的文件和文件夹" hidden></div>
+      <div class="pending-files" id="pendingFiles" hidden></div>
+      <div class="main">
+        <button class="icon-btn state" id="attach" title="添加 EEG、视频、图片或文档；也可粘贴图片"><span class="ms">add</span></button>
+        <input type="file" id="file" hidden multiple>
+        <textarea id="input" rows="1" placeholder="给 EFAgent 发送消息… 输入 @ 引用文件" aria-label="消息" aria-controls="commandMenu mentionMenu" aria-autocomplete="list" aria-expanded="false"></textarea>
+        <button class="llm-selector" id="llmSelector" title="切换对话模型" aria-expanded="false" aria-controls="llmPicker"><span id="composerModel">选择模型</span><span class="ms">expand_more</span></button>
+        <button class="send" id="send" disabled title="发送 (Enter)"><span class="ms">arrow_upward</span></button>
+      </div>
+    </div>
+    <div class="starter-grid" aria-label="开始一项研究">
+      <button class="starter-card" data-q="帮我看看这段 EEG 的情绪变化。"><span class="ms">psychology</span>情绪研究</button>
+      <button class="starter-card" data-q="帮我分析这段 EEG 的睡眠状态。"><span class="ms">bedtime</span>睡眠分析</button>
+      <button class="starter-card" data-q="结合 EEG 和视频，分析情绪随时间的变化。"><span class="ms">videocam</span>EEG ＋ 视频</button>
+    </div>
+  </div>
+</main>
+
+<aside class="sheet" id="detailPanel" aria-label="分析详情"><div class="sheet-inner">
+  <div class="sheet-head"><button class="icon-btn" id="detailBack" title="返回结果" aria-label="返回结果" hidden><span class="ms">chevron_left</span></button><span class="title-m" id="panelTitle">分析面板</span><span class="grow"></span><button class="icon-btn state" id="sheetClose" title="关闭"><span class="ms">close</span></button></div>
+  <div class="tabs" role="tablist" aria-label="证据类型">
+    <button class="tab" role="tab" data-tab="data">文件<span class="badge" id="bData"></span></button>
+    <button class="tab" role="tab" data-tab="art">结果<span class="badge" id="bArt"></span></button>
+    <button class="tab" role="tab" data-tab="model" hidden>模型</button>
+    <button class="tab" role="tab" data-tab="know">来源<span class="badge" id="bKnow"></span></button>
+    <button class="tab" role="tab" data-tab="skill" hidden>能力</button>
+  </div>
+  <div class="sheet-body">
+    <div class="pane" role="tabpanel" id="pane-model">
+      <div class="panel-intro"><h3>给任务选择合适的模型</h3><p>识别模型负责预测，分析助手负责调度与解释。输入要求和接入状态来自模型登记表。</p></div>
+      <div class="model-filters" role="group" aria-label="筛选模型任务"><button class="on" data-model-task="emotion">情绪</button><button data-model-task="sleep_stage">睡眠</button><button data-model-task="embedding">表征</button></div>
+      <div id="modelList" aria-live="polite"><p class="muted">正在读取模型目录…</p></div>
+      <details class="model-onboarding"><summary><span class="ms">chevron_right</span>接入自己的训练模型</summary><p>在 configs/model_registry.yaml 登记权重、输入契约、标签顺序与评测协议，并实现推理执行器。EEGNet 可接入 EEG 情绪任务，CAMER 需要同步面部视频。</p><p>权重与执行器接入后才可运行分类；当前仍可使用信号处理和特征分析。</p></details>
+    </div>
+    <div class="pane" role="tabpanel" id="pane-data">
+      <div id="dataList"><div class="card outlined muted body-m" id="noData">本次会话的文件会显示在这里，可打开预览。</div><div id="manifests"></div></div>
+      <section id="attachmentPreview" class="attachment-preview" hidden aria-label="文件预览"></section>
+    </div>
+    <div class="pane" role="tabpanel" id="pane-art">
+      <div class="card outlined muted body-m" id="noArt">分析生成的图表、报告和数据文件会显示在这里。</div>
+      <section id="resultCatalog" aria-label="结果目录">
+        <div class="result-toolbar"><label id="resultScopeHeading">查看范围</label><button id="resultScope" class="result-scope-trigger" type="button" aria-label="选择分析结果范围" aria-haspopup="listbox" aria-expanded="false" aria-controls="resultScopeMenu"><span id="resultScopeLabel">最近一次分析</span><span class="ms">expand_more</span></button><div id="resultScopeMenu" class="selection-menu" popover role="listbox" aria-label="分析结果范围"></div><input id="resultSearch" type="search" placeholder="搜索名称、说明或文件…" aria-label="搜索结果"></div>
+        <div id="resultList"></div>
+      </section>
+      <section id="resultDetail" aria-label="选中结果" hidden><button class="result-back" id="resultBack"><span class="ms">chevron_left</span>返回结果目录</button><div id="artifacts"></div></section>
+    </div>
+    <div class="pane" role="region" aria-label="执行详情" id="pane-trace">
+      <div class="card outlined muted body-m" id="noTrace">选择对话中的分析步骤，查看执行详情。</div>
+      <div class="timeline" id="trace"></div>
+    </div>
+    <div class="pane" role="tabpanel" id="pane-skill">
+      <div class="card"><div class="label-m muted" style="margin-bottom:6px">当前激活</div><div id="activeSkill" class="muted body-m">自动选择方法</div></div>
+      <div id="skillList"></div>
+    </div>
+    <div class="pane" role="tabpanel" id="pane-know">
+      <div class="source-empty" id="noKnow">回答使用资料时，你可以从引用标记查看对应原文。</div>
+      <section id="sourceDetail" class="source-detail" hidden></section>
+      <div id="knowledge"></div>
+      <details class="source-relations"><summary><span class="ms">chevron_right</span>知识关系</summary><div id="facts"></div></details>
+    </div>
+  </div>
+</div></aside>
+
+<div class="snack" id="snack" role="status"></div>
+<div id="sourcePopover" class="source-popover" popover role="dialog" aria-label="引用来源"></div>
+<div id="lightbox"><img alt=""></div>
+<div id="scrim"></div>
+<nav id="drawer" aria-label="工作区导航">
+  <div class="dhead"><span class="brand-mark"><span class="ms">waves</span></span><span class="brand grow">EFAgent</span><button class="icon-btn state" id="sessionSearchToggle" title="搜索会话" aria-expanded="false" aria-controls="sessionSearch"><span class="ms">search</span></button><button class="icon-btn state" id="drawerClose" title="关闭"><span class="ms">close</span></button></div>
+  <button class="newbtn state" id="newSession2"><span class="ms">edit_square</span>新分析 <kbd>Ctrl K</kbd></button>
+  <div class="workspace-nav"><button data-panel="data"><span class="ms">folder_open</span>文件</button><button data-panel="model"><span class="ms">hub</span>识别模型</button><button data-panel="skill"><span class="ms">extension</span>方法</button><button data-panel="art"><span class="ms">description</span>结果</button></div>
+  <div class="session-list-heading"><span class="section-label" id="sessionListTitle">工作区</span><button class="icon-btn" id="mountWorkspace" title="选择本地文件夹"><span class="ms">add</span></button><button class="icon-btn" id="trashToggle" title="打开回收站"><span class="ms">delete_sweep</span></button></div>
+  <input id="sessionSearch" class="session-search" placeholder="搜索会话" aria-label="搜索对话" hidden>
+  <div id="sesList" style="overflow-y:auto;flex:1"></div>
+<div class="sidebar-footer"><span class="dot" id="workerDot"></span><span id="workerStatus">本地服务</span><span class="grow"></span><button class="icon-btn state" id="themeBtn" title="切换主题"><span class="ms">dark_mode</span></button></div></nav>
+
+<div class="llm-picker" id="llmPicker" popover role="dialog" aria-label="选择对话模型"><div class="llm-picker-head">对话模型<button class="icon-btn" id="refreshLLMModels" title="刷新模型列表"><span class="ms">refresh</span></button></div><input id="llmSearch" class="llm-search" type="search" placeholder="搜索模型…" aria-label="搜索模型"><div class="llm-options" id="llmOptions" role="listbox" aria-label="网关模型"></div></div>
+
+<div class="attachment-menu" id="attachmentMenu" popover role="menu" aria-label="输出内容和来源"></div>
+<div class="session-menu workspace-menu" id="workspaceMenu" popover role="menu" aria-label="工作区操作">
+  <div id="workspaceMenuTitle" class="menu-title"></div>
+  <button role="menuitem" id="removeWorkspace"><span class="ms">close</span>移除工作区</button>
+  <p class="workspace-menu-note" id="workspaceMenuNote">保留本地文件，会话移至独立会话。</p>
+</div>
+<div class="session-menu" id="sessionMenu" popover role="menu" aria-label="会话操作">
+  <div id="menuTitle" class="menu-title"></div>
+  <button role="menuitem" data-action="rename"><span class="ms">edit_square</span>重命名</button>
+  <button role="menuitem" data-action="clone"><span class="ms">content_copy</span>复制为新分析<span class="menu-hint">保留当前数据和结果</span></button>
+  <div class="menu-separator"></div>
+  <a role="menuitem" data-action="export-md" download><span class="ms">description</span>导出 Markdown</a>
+  <a role="menuitem" data-action="export-json" download><span class="ms">download</span>导出 JSON</a>
+  <div class="menu-separator"></div>
+  <button class="danger" role="menuitem" data-action="delete"><span class="ms">delete_sweep</span>删除会话</button>
+  <button role="menuitem" data-action="restore" hidden><span class="ms">reply</span>恢复会话</button>
+</div>
+<dialog id="sessionDialog" aria-labelledby="dialogTitle" aria-describedby="dialogDescription">
+  <form id="sessionForm">
+    <div class="dialog-heading"><h2 id="dialogTitle"></h2><button type="button" class="icon-btn" id="dialogClose" title="关闭对话框"><span class="ms">close</span></button></div>
+    <p id="dialogDescription"></p>
+    <label id="renameLabel">会话名称<input id="renameInput" name="title" maxlength="120" autocomplete="off"></label>
+    <p class="dialog-error" id="dialogError" role="alert" hidden></p>
+    <div class="dialog-actions"><button type="button" class="chip" id="dialogCancel">取消</button><button type="submit" class="chip tonal" id="dialogSubmit">保存</button></div>
+  </form>
+</dialog>
+
+<script src="/static/projection.js" defer></script>
+<script src="/static/citations.js" defer></script>
+<script src="/static/icons.js" defer></script>
+<script src="/static/transcript-ui.js" defer></script>
+<script src="/static/attachment-preview.js" defer></script>
+<script src="/static/workspace-mount.js" defer></script>
+<script src="/static/file-mentions.js" defer></script>
+<script src="/static/execution-details.js" defer></script>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

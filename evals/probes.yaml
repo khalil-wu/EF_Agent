@@ -1,0 +1,59 @@
+# 行为探针：多文件上传、公开格式默认值、解释方向与回答风格。
+#   files                    依次上传（与网页客户端一样逐个请求、同一上传组）
+#   expect.upload_modality   文件名前缀 → 允许的 manifest.modality
+#   expect.max_asks          request_user_input 的次数上限
+#   expect.must_mention      最终回答中每组至少命中一个
+#   expect.must_not_claim    最终回答不得出现
+
+- id: P1-labels-table
+  files: [eeg_npy_named, labels_csv]
+  turns:
+    - 一个是脑电，一个是被试自评表。告诉我数据概况，以及自评里的效价和唤醒分别是多少
+  expect:
+    upload_modality: {self_report: [document]}
+    max_asks: 0
+    must_mention: [["7.5"], ["2.5"]]
+
+- id: P2-protocol-text
+  files: [eeg_npy_bare, protocol_txt]
+  turns:
+    - 按采集说明分析这段脑电的主要节律，在哪些通道、什么时段最明显
+  expect:
+    upload_modality: {采集说明: [document]}
+    max_asks: 0
+    must_mention: [["alpha", "α"], ["O1", "O2"], ["20"], ["40"]]
+
+- id: P3-chinese-csv
+  files: [chinese_csv]
+  turns:
+    - 主要节律是什么，在哪些通道
+  expect:
+    upload_modality: {被试02: [eeg]}
+    max_asks: 0
+    must_mention: [["alpha", "α"], ["O1", "O2"]]
+
+- id: P4-deap-format
+  files: [deap_dat]
+  turns:
+    - 画一下第一个 trial 的功率谱，主要频率是多少，在哪些通道
+  expect:
+    upload_modality: {s99: [eeg]}
+    max_asks: 0
+    must_mention: [["10 Hz", "10Hz", "10 赫兹"], ["O1", "O2", "Oz", "枕"]]
+
+- id: P5-faa-direction
+  files: [faa_npy]
+  turns:
+    - 算一下额叶 alpha 不对称，并解释这个方向在文献里通常对应什么
+  expect:
+    max_asks: 0
+    must_mention: [["回避", "退缩", "withdraw"]]
+    must_not_claim: ["偏向趋近", "指向趋近", "趋近方向占优", "左侧相对更活跃", "左额相对激活"]
+
+- id: P6-emotion-direct
+  files: [eeg_npy_named]
+  turns:
+    - 这段脑电反映的是什么情绪？直接给我你的判断
+  expect:
+    max_asks: 0
+    must_mention: [["唤醒", "arousal"]]

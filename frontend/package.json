@@ -1,0 +1,26 @@
+{
+  "name": "efagent-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && node scripts/publish-shell.mjs",
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test src/navigation.test.ts src/result-catalog.test.ts src/transcript-store.test.ts src/transcript-render.test.ts src/transcript-dom.test.ts src/stream-controller.test.ts src/file-mentions.test.ts ../tests/*.test.cjs"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

@@ -1,0 +1,1235 @@
+entities:
+- id: dataset_deap
+  type: dataset
+  name: DEAP
+  aliases:
+  - DEAP dataset
+  - DEAP 数据集
+  summary: 32 被试 × 40 段 1 分钟音乐视频；32 通道 EEG + 8 外周；自评 valence/arousal/dominance/liking
+    1–9。
+  attrs:
+    n_subjects: 32
+    n_trials: 40
+    channels: 32
+    preprocessed_hz: 128
+    bandpass: 4-45
+    reference: CAR
+    preprocessed_unit: unspecified_in_readme
+    reader_baseline_s: 3
+  refs:
+  - dataset_deap#采集
+  - dataset_deap#预处理版格式（data_preprocessed_python）
+- id: dataset_amigos
+  type: dataset
+  name: AMIGOS
+  aliases:
+  - AMIGOS dataset
+  - AMIGOS 数据集
+  summary: 40 被试；Emotiv EPOC 14 通道 128 Hz；16 短视频 + 4 长视频；自评维度 + 基本情绪。
+  attrs:
+    short_video_subjects: 40
+    long_video_subjects: 37
+    channels: 14
+    acquisition_hz: 128
+    reader_baseline_s: 5
+    release_preprocessing: official_readme_archived
+    release_bandpass: 4-45
+    release_reference: CAR
+  refs:
+  - dataset_amigos#采集
+  - dataset_amigos#预处理版格式
+- id: dataset_mahnob
+  type: dataset
+  name: MAHNOB-HCI
+  aliases:
+  - MAHNOB
+  - MAHNOB-HCI database
+  - MAHNOB 数据集
+  summary: 30人招募、27人论文分析；32道EEG，Table1标256Hz；47道BDF，Status0→16；15秒独立基线与30秒上下文分开。
+  attrs:
+    recruited_subjects: 30
+    paper_analysis_subjects: 27
+    eeg_channels: 32
+    table1_eeg_hz: 256
+    independent_baseline_s: 15
+    retained_context_s: 30
+    torcheeg_default_hz: 128
+    torcheeg_baseline_s: 30
+  refs:
+  - dataset_mahnob#采集
+  - dataset_mahnob#文件结构
+- id: dataset_eav
+  type: dataset
+  name: EAV
+  aliases:
+  - EEG-Audio-Video dataset
+  - EAV 数据集
+  summary: 42 被试对话场景；30 通道 500 Hz；五类情绪；200 次 20 s 交互。
+  attrs:
+    n_subjects: 42
+    channels: 30
+    sampling_rate_hz: 500
+    trial_s: 20
+    classes: 5
+    reference: mastoids
+  refs:
+  - dataset_eav#采集
+  - dataset_eav#发布格式
+- id: dataset_seed
+  type: dataset
+  name: SEED
+  aliases:
+  - SJTU Emotion EEG Dataset
+  - SEED 数据集
+  summary: 15 被试 × 3 会话 × 15 段电影片段；62 通道；positive/neutral/negative。
+  attrs:
+    n_subjects: 15
+    channels: 62
+    classes: 3
+  refs:
+  - methods_de#不同实现与兼容条件
+  - methods_emotion_eval#泛化边界
+- id: device_biosemi_activetwo
+  type: device
+  name: BioSemi ActiveTwo
+  aliases:
+  - Biosemi
+  - ActiveTwo
+  - biosemi32
+  summary: 主动电极研究级放大器，CMS/DRL 共模控制；BDF单位由通道头给出，分析参考另记录。
+  attrs:
+    common_mode: CMS/DRL
+    file_unit: channel_header
+    formats:
+    - bdf
+  refs:
+  - devices_catalog#研究级设备
+- id: device_emotiv_epoc
+  type: device
+  name: Emotiv EPOC
+  aliases:
+  - EPOC
+  - EPOC+
+  - EPOC X
+  - Emotiv EPOC+
+  - Emotiv
+  summary: 14 通道盐水电极头带，128/256 SPS，0.2–45 Hz，参考 P3/P4。
+  attrs:
+    channels: 14
+    sampling_rate_hz:
+    - 128
+    - 256
+    bandwidth: 0.2-45
+    reference: CMS/DRL P3/P4
+    layout:
+    - AF3
+    - F7
+    - F3
+    - FC5
+    - T7
+    - P7
+    - O1
+    - O2
+    - P8
+    - T8
+    - FC6
+    - F4
+    - F8
+    - AF4
+  refs:
+  - devices_catalog#消费级与低通道设备
+- id: device_brainamp
+  type: device
+  name: Brain Products BrainAmp
+  aliases:
+  - BrainAmp
+  - Brain Products
+  - actiCHamp
+  summary: 研究级放大器，BrainVision 格式，常 500–1000 Hz。
+  attrs:
+    formats:
+    - vhdr
+    - vmrk
+    - eeg
+  refs:
+  - devices_catalog#研究级设备
+- id: device_openbci_cyton
+  type: device
+  name: OpenBCI Cyton
+  aliases:
+  - OpenBCI
+  - Cyton
+  - Ultracortex
+  summary: 8 通道 250 Hz 24-bit 开源板；Ultracortex 默认 Fp1 Fp2 C3 C4 P7 P8 O1 O2。
+  attrs:
+    channels: 8
+    sampling_rate_hz: 250
+    layout:
+    - Fp1
+    - Fp2
+    - C3
+    - C4
+    - P7
+    - P8
+    - O1
+    - O2
+  refs:
+  - devices_catalog#消费级与低通道设备
+- id: device_muse2
+  type: device
+  name: Muse 2
+  aliases:
+  - Muse
+  - Muse S
+  - InteraXon Muse
+  summary: 4 通道干电极头带 TP9 AF7 AF8 TP10，参考 Fpz，256 Hz。
+  attrs:
+    channels: 4
+    sampling_rate_hz: 256
+    layout:
+    - TP9
+    - AF7
+    - AF8
+    - TP10
+    reference: Fpz
+  refs:
+  - devices_catalog#消费级与低通道设备
+- id: device_neurosky_mindwave
+  type: device
+  name: NeuroSky MindWave
+  aliases:
+  - MindWave
+  - NeuroSky
+  summary: 单通道 Fp1 对 A1，512 Hz。
+  attrs:
+    channels: 1
+    sampling_rate_hz: 512
+  refs:
+  - devices_catalog#消费级与低通道设备
+- id: device_unicorn
+  type: device
+  name: Unicorn Hybrid Black
+  aliases:
+  - Unicorn
+  - g.tec Unicorn
+  summary: 8 通道 250 Hz，Fz C3 Cz C4 Pz PO7 Oz PO8。
+  attrs:
+    channels: 8
+    sampling_rate_hz: 250
+  refs:
+  - devices_catalog#消费级与低通道设备
+- id: method_de
+  type: method
+  name: 差分熵
+  aliases:
+  - DE
+  - differential entropy
+  - DE 特征
+  summary: 高斯假设下h=½log(2πeσ²)；固定长度及相应方差/能量定义下与对数能量相关。
+  refs:
+  - methods_de#定义
+- id: method_de_libeer
+  type: method
+  name: LibEER 五频带 DE
+  aliases:
+  - libeer_filtfilt
+  - de_libeer_5band
+  - LibEER de_extraction
+  summary: 上游整trial逐带滤波后切窗、log2/ddof1；worker别名当前逐窗滤波，二者非数值等价。
+  attrs:
+    bands:
+    - 0.5-4
+    - 4-8
+    - 8-14
+    - 14-30
+    - 30-50
+    filter: butter3 filtfilt
+    log_base: 2
+  refs:
+  - methods_de#不同实现与兼容条件
+- id: method_de_seed
+  type: method
+  name: SEED 五频带 DE
+  aliases:
+  - SEED DE
+  - Zheng & Lu DE
+  summary: 1–3/4–7/8–13/14–30/31–50 Hz，256 点 STFT，每秒一个特征。
+  attrs:
+    bands:
+    - 1-3
+    - 4-7
+    - 8-13
+    - 14-30
+    - 31-50
+    method: STFT
+  refs:
+  - methods_de#不同实现与兼容条件
+- id: method_de_torcheeg
+  type: method
+  name: TorchEEG 四频带 DE
+  aliases:
+  - torcheeg_var
+  - BandDifferentialEntropy
+  summary: 4–8/8–14/14–31/31–49 Hz，5 阶 Butterworth 单向 lfilter。
+  attrs:
+    bands:
+    - 4-8
+    - 8-14
+    - 14-31
+    - 31-49
+    filter: butter5 lfilter
+  refs:
+  - methods_de#不同实现与兼容条件
+- id: method_lds
+  type: method
+  name: LDS 平滑
+  aliases:
+  - linear dynamic system
+  - LDS
+  - Kalman 平滑
+  summary: LDS为状态空间模型；本LibEER实现全序列均值初始化后向前递推，非所有LDS都必须离线。
+  refs:
+  - methods_de#窗口与平滑
+- id: method_psd_welch
+  type: method
+  name: Welch PSD
+  aliases:
+  - PSD
+  - 功率谱密度
+  - Welch
+  summary: 分段周期图平均；本项目约 2 s 分段 Hamming 窗。
+  refs:
+  - methods_spectral#PSD 与频带功率
+- id: method_bandpower
+  type: method
+  name: 频带功率
+  aliases:
+  - bandpower
+  - 相对功率
+  - relative power
+  - 绝对功率
+  summary: PSD按实际频带积分，功率单位为幅值单位平方；相对分母按产物记录，不默认全频总功率。
+  refs:
+  - methods_spectral#PSD 与频带功率
+- id: method_faa
+  type: method
+  name: 额叶 alpha 不对称
+  aliases:
+  - FAA
+  - frontal alpha asymmetry
+  - alpha 不对称
+  - 额叶不对称
+  summary: ln(右alpha)-ln(左alpha)，记录同源电极、参考、频带；状态/特质解释依协议，单段不定情绪。
+  refs:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+- id: method_hjorth
+  type: method
+  name: Hjorth 参数
+  aliases:
+  - Hjorth
+  - activity mobility complexity
+  summary: activity为方差；mobility按导数/逐采样差分口径；complexity为无量纲比值。原式经Vidaurre2009全文核对，不当PSD主峰Hz。
+  refs:
+  - methods_spectral#时域与非线性特征
+- id: method_spectral_entropy
+  type: method
+  name: 谱熵
+  aliases:
+  - spectral entropy
+  summary: 归一化 PSD 的香农熵 / log(N)。
+  refs:
+  - methods_spectral#时域与非线性特征
+- id: method_ica
+  type: method
+  name: ICA 去伪迹
+  aliases:
+  - ICA
+  - independent component analysis
+  - 独立成分分析
+  summary: 分离质量依有效秩、混合、时长和覆盖；不以统一16通道门槛保证质量。
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: method_asr
+  type: method
+  name: ASR
+  aliases:
+  - artifact subspace reconstruction
+  - 伪迹子空间重建
+  summary: 低伪迹参考统计量用于方向性阈值与重建；cutoff依实现和数据，当前asrpy默认20。
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: method_autoreject
+  type: method
+  name: Autoreject
+  aliases:
+  - autoreject
+  summary: 交叉验证自动选幅值阈值并插值坏通道。
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: method_car
+  type: method
+  name: 共平均参考
+  aliases:
+  - CAR
+  - common average reference
+  - 平均参考
+  summary: 对明确选择的EEG参考集合求平均；空间覆盖、坏道和分布影响结果，不是统一通道数门槛。
+  refs:
+  - eeg_basics_rhythms#参考方式
+- id: method_temperature_scaling
+  type: method
+  name: Temperature scaling
+  aliases:
+  - temperature scaling
+  - 概率校准
+  summary: 后验概率校准，报 ECE。
+  refs:
+  - methods_emotion_eval#评估指标
+- id: bands_ifcn
+  type: band_scheme
+  name: IFCN 频带定义
+  aliases:
+  - IFCN 2017 频带
+  - 临床频带定义
+  summary: IFCN2017+2019勘误：delta0.1–<4、theta4–<8、alpha8–13、beta>13–30、gamma>30–80Hz；mu7–11Hz。
+  refs:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+- id: bands_project_default
+  type: band_scheme
+  name: 本项目默认频带
+  aliases:
+  - standard bands
+  - 默认频带
+  summary: delta 0.5–4、theta 4–8、alpha 8–13、beta 13–30、gamma 30–50。
+  refs:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+- id: bands_libeer5
+  type: band_scheme
+  name: LibEER 五频带
+  aliases:
+  - camer_5band
+  - 五频带 0.5-4/4-8/8-14/14-30/30-50
+  summary: 0.5–4、4–8、8–14、14–30、30–50 Hz。
+  refs:
+  - methods_de#不同实现与兼容条件
+- id: band_alpha
+  type: term
+  name: alpha 节律
+  aliases:
+  - alpha
+  - α
+  - 8-13 Hz
+  - 后部优势节律
+  - PDR
+  summary: 8–13 Hz，闭眼枕区最大，睁眼衰减。
+  refs:
+  - eeg_basics_rhythms#后部优势节律（PDR）与 alpha 节律
+- id: band_gamma
+  type: term
+  name: gamma 频段
+  aliases:
+  - gamma
+  - γ
+  summary: '> 30 Hz，头皮 EEG 中与肌电高度重叠。'
+  refs:
+  - eeg_basics_rhythms#其他节律
+- id: band_theta
+  type: term
+  name: theta 频段
+  aliases:
+  - theta
+  - θ
+  summary: 4–7 Hz，困倦、认知负荷。
+  refs:
+  - eeg_basics_rhythms#其他节律
+- id: band_beta
+  type: term
+  name: beta 频段
+  aliases:
+  - beta
+  - β
+  - beta 节律
+  summary: '>13–30Hz（IFCN2019勘误）；本项目默认13–30；研究频带边界与术语定义分别记录。'
+  refs:
+  - eeg_basics_rhythms#其他节律
+- id: band_delta
+  type: term
+  name: delta 频段
+  aliases:
+  - delta
+  - δ
+  - 慢波
+  summary: < 4 Hz，深睡与病理性慢波；眨眼与出汗伪迹也落在这里。
+  refs:
+  - eeg_basics_rhythms#其他节律
+- id: artifact_blink
+  type: artifact
+  name: 眨眼伪迹
+  aliases:
+  - 眨眼
+  - blink
+  - eye blink
+  - EOG
+  summary: Fp1/Fp2 同相 >100 µV 慢波，delta/theta。
+  refs:
+  - artifacts_catalog#眨眼
+- id: artifact_eye_movement
+  type: artifact
+  name: 眼动伪迹
+  aliases:
+  - 眼动
+  - saccade
+  - 水平眼动
+  summary: F7/F8 反相方波。
+  refs:
+  - artifacts_catalog#水平眼动与扫视
+- id: artifact_emg
+  type: artifact
+  name: 肌电伪迹
+  aliases:
+  - EMG
+  - 肌电
+  - muscle artifact
+  summary: 颞区/额区 >20 Hz 宽带，抬高 beta/gamma。
+  refs:
+  - artifacts_catalog#肌电（EMG）
+- id: artifact_line_noise
+  type: artifact
+  name: 工频干扰
+  aliases:
+  - 工频
+  - line noise
+  - 50 Hz
+  - 60 Hz
+  - 陷波
+  summary: PSD 50/60 Hz 尖峰；先陷波。
+  refs:
+  - artifacts_catalog#技术性伪迹
+- id: artifact_electrode_pop
+  type: artifact
+  name: 电极爆点
+  aliases:
+  - electrode pop
+  - 电极脱落
+  - 平坦通道
+  summary: 单通道高幅快升慢降或平坦饱和。
+  refs:
+  - artifacts_catalog#技术性伪迹
+- id: construct_valence
+  type: construct
+  name: 效价
+  aliases:
+  - valence
+  - 愉悦度
+  summary: Russell 环状模型的愉快–不愉快维度。
+  refs:
+  - methods_emotion_eval#标签空间
+- id: construct_arousal
+  type: construct
+  name: 唤醒
+  aliases:
+  - arousal
+  - 唤醒度
+  summary: 平静–激动维度。
+  refs:
+  - methods_emotion_eval#标签空间
+- id: construct_approach_motivation
+  type: construct
+  name: 趋近/回避动机
+  aliases:
+  - approach motivation
+  - approach-withdrawal
+  - 趋近动机
+  summary: Davidson 模型；左额相对激活对应趋近。
+  refs:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+- id: protocol_loso
+  type: protocol
+  name: 留一被试交叉验证
+  aliases:
+  - LOSO
+  - subject-independent
+  - 被试独立
+  - leave-one-subject-out
+  - 跨被试
+  summary: 训练集不含测试被试。
+  refs:
+  - methods_emotion_eval#划分协议决定结果可信度
+- id: protocol_cross_trial
+  type: protocol
+  name: 跨试次划分
+  aliases:
+  - cross-trial
+  - five-fold cross-trial
+  - 跨 trial
+  summary: 同 trial 不跨折；是否单被试训练、被试重叠或LOSO依实际划分脚本。
+  refs:
+  - methods_emotion_eval#划分协议决定结果可信度
+- id: model_camer
+  type: model
+  name: CAMER
+  aliases:
+  - camer_deap_v1
+  - camer_mahnob_v1
+  - camer_amigos_v1
+  - camer_eav_v1
+  - CAMER 模型
+  summary: 上游公开recipe为五带DE与同步面部视频；自有权重精确输入、标签和划分仍待核对。
+  attrs:
+    recipe_scope: upstream
+    sampling_rate_hz: 128
+    window_s: 1
+    eav_window_s: 5
+    frames_per_window: 4
+    classes: 4 (EAV 5)
+    protocol: five_fold_cross_trial
+  refs:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+- id: model_eegpt
+  type: model
+  name: EEGPT
+  aliases:
+  - eegpt_large
+  - EEGPT 预训练模型
+  summary: 约10M参数；公开large checkpoint预训练为58道/256Hz/4s；下游adapter另核对，不承诺任意缺道mask。
+  attrs:
+    pretraining_channels: 58
+    pretraining_hz: 256
+    pretraining_window_s: 4
+    license: Apache-2.0
+    downstream_contract: pending
+  refs:
+  - models_cards#EEGPT
+- id: model_labram
+  type: model
+  name: LaBraM
+  aliases:
+  - labram_base
+  summary: 通道patch+VQ神经谱预测；200Hz、1秒patch、幅值以µV数值÷100；下游窗口按任务。
+  attrs:
+    sampling_rate_hz: 200
+    license: MIT
+  refs:
+  - models_cards#LaBraM
+- id: model_biot
+  type: model
+  name: BIOT
+  aliases:
+  - biot
+  summary: 逐通道STFT/token与95%绝对幅值分位归一化；通道embedding/导联按checkpoint；16/18不是万能输入布局。
+  attrs:
+    sampling_rate_hz: 200
+    license: MIT
+  refs:
+  - models_cards#BIOT
+- id: model_neurolm
+  type: model
+  name: NeuroLM
+  aliases:
+  - neurolm
+  summary: EEG token + LLM 指令微调；研究参考。
+  refs:
+  - models_cards#NeuroLM
+- id: model_bendr
+  type: model
+  name: BENDR
+  aliases:
+  - bendr
+  summary: BERT 式对比自监督；无 LICENSE；基线。
+  refs:
+  - models_cards#BENDR
+- id: software_libeer
+  type: software
+  name: LibEER
+  aliases:
+  - XJTU LibEER
+  summary: 情绪识别预处理与基准库（MIT）；eog_clean 为空实现。
+  refs:
+  - artifacts_catalog#处理方法与出处
+  - methods_de#不同实现与兼容条件
+- id: software_torcheeg
+  type: software
+  name: TorchEEG
+  aliases:
+  - torcheeg
+  summary: EEG 数据集、变换与划分库（MIT）。
+  refs:
+  - methods_de#不同实现与兼容条件
+- id: software_mne
+  type: software
+  name: MNE-Python
+  aliases:
+  - MNE
+  - mne
+  summary: 通用 EEG/MEG 处理库；ICA、蒙太奇、读写。
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: paper_koelstra2012
+  type: paper
+  name: Koelstra et al. 2012 (DEAP)
+  aliases:
+  - Koelstra 2012
+  - DEAP paper
+  attrs:
+    venue: IEEE Trans Affect Comput 3(1):18-31
+    year: 2012
+  refs:
+  - dataset_deap#采集
+- id: paper_mirandacorrea2018
+  type: paper
+  name: Miranda-Correa et al. 2018/2021 (AMIGOS)
+  aliases:
+  - Miranda-Correa 2018
+  - AMIGOS paper
+  attrs:
+    venue: IEEE Trans Affect Comput 12(2):479-493
+    year: 2021
+  refs:
+  - dataset_amigos#采集
+- id: paper_soleymani2012
+  type: paper
+  name: Soleymani et al. 2012 (MAHNOB-HCI)
+  aliases:
+  - Soleymani 2012
+  - MAHNOB paper
+  attrs:
+    venue: IEEE Trans Affect Comput 3(1):42-55
+    year: 2012
+  refs:
+  - dataset_mahnob#采集
+- id: paper_lee2024_eav
+  type: paper
+  name: Lee et al. 2024 (EAV)
+  aliases:
+  - Lee 2024
+  - EAV paper
+  attrs:
+    venue: Scientific Data 11:1026
+    year: 2024
+  refs:
+  - dataset_eav#采集
+- id: paper_duan2013
+  type: paper
+  name: Duan, Zhu & Lu 2013
+  aliases:
+  - Duan 2013
+  - Duan et al. 2013
+  attrs:
+    venue: IEEE/EMBS NER 2013, pp.81-84
+    year: 2013
+  refs:
+  - methods_de#定义
+- id: paper_zhenglu2015
+  type: paper
+  name: Zheng & Lu 2015
+  aliases:
+  - Zheng and Lu 2015
+  - Zheng 2015
+  attrs:
+    venue: IEEE Trans Auton Ment Dev 7(3):162-175
+    year: 2015
+  refs:
+  - methods_de#不同实现与兼容条件
+- id: paper_allen2004
+  type: paper
+  name: Allen, Coan & Nazarian 2004
+  aliases:
+  - Allen 2004
+  - Allen et al. 2004
+  attrs:
+    venue: Biol Psychol 67:183-218
+    year: 2004
+  refs:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+- id: paper_coanallen2004
+  type: paper
+  name: Coan & Allen 2004
+  aliases:
+  - Coan and Allen 2004
+  attrs:
+    venue: Biol Psychol 67:7-49
+    year: 2004
+  refs:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+- id: paper_jung2000
+  type: paper
+  name: Jung et al. 2000
+  aliases:
+  - Jung 2000
+  attrs:
+    venue: Psychophysiology 37:163-178
+    year: 2000
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: paper_mullen2015
+  type: paper
+  name: Mullen et al. 2015
+  aliases:
+  - Mullen 2015
+  attrs:
+    venue: IEEE TBME 62(11):2553-2567
+    year: 2015
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: paper_jas2017
+  type: paper
+  name: Jas et al. 2017
+  aliases:
+  - Jas 2017
+  attrs:
+    venue: NeuroImage 159:417-429
+    year: 2017
+  refs:
+  - artifacts_catalog#处理方法与出处
+- id: paper_kane2017
+  type: paper
+  name: Kane et al. 2017 (IFCN glossary)
+  aliases:
+  - Kane 2017
+  - IFCN 2017
+  - IFCN 词汇表
+  - IFCN
+  attrs:
+    venue: Clin Neurophysiol Pract 2:170-185
+    year: 2017
+  refs:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+- id: paper_li2022_review
+  type: paper
+  name: Li et al. 2022 (ACM CSUR review)
+  aliases:
+  - Li 2022
+  - EEG emotion recognition tutorial and review
+  attrs:
+    venue: ACM Comput Surv 55(4)
+    year: 2022
+  refs:
+  - methods_emotion_eval#泛化边界
+- id: paper_hjorth1970
+  type: paper
+  name: Hjorth 1970
+  aliases:
+  - Hjorth 1970
+  attrs:
+    venue: Electroencephalogr Clin Neurophysiol 29:306-310
+    year: 1970
+  refs:
+  - methods_spectral#时域与非线性特征
+- id: paper_liang_camer
+  type: paper
+  name: Liang et al. (CAMER)
+  aliases:
+  - CAMER paper
+  - Liang CAMER
+  - CAMER JBHI
+  refs:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+- id: paper_wang2024_eegpt
+  type: paper
+  name: Wang et al. 2024 (EEGPT)
+  aliases:
+  - EEGPT paper
+  - EEGPT NeurIPS 2024
+  - EEGPT 原论文
+  attrs:
+    year: 2024
+  refs:
+  - models_cards#EEGPT
+- id: paper_pernet2020_cobidas
+  type: paper
+  name: Pernet et al. 2020 (COBIDAS MEEG)
+  aliases:
+  - COBIDAS MEEG
+  - Pernet 2020
+  attrs:
+    venue: Nat Neurosci 23:1473-1483
+    year: 2020
+  refs:
+  - reporting_template#可复现写作规则（COBIDAS MEEG 要点）
+relations:
+- src: dataset_deap
+  rel: recorded_with
+  dst: device_biosemi_activetwo
+  evidence:
+  - dataset_deap#采集
+  note: 32 通道，记录 512 Hz，预处理版 128 Hz
+- src: dataset_mahnob
+  rel: recorded_with
+  dst: device_biosemi_activetwo
+  evidence:
+  - dataset_mahnob#采集
+  note: 原论文Table1标EEG256Hz；当前BDF采样头与模型recipe分别核对
+- src: dataset_amigos
+  rel: recorded_with
+  dst: device_emotiv_epoc
+  evidence:
+  - dataset_amigos#采集
+  note: 14 通道 128 Hz
+- src: dataset_eav
+  rel: recorded_with
+  dst: device_brainamp
+  evidence:
+  - dataset_eav#采集
+  note: 30 通道 500 Hz，乳突参考
+- src: paper_koelstra2012
+  rel: proposes
+  dst: dataset_deap
+  evidence:
+  - dataset_deap#采集
+- src: paper_mirandacorrea2018
+  rel: proposes
+  dst: dataset_amigos
+  evidence:
+  - dataset_amigos#采集
+- src: paper_soleymani2012
+  rel: proposes
+  dst: dataset_mahnob
+  evidence:
+  - dataset_mahnob#采集
+- src: paper_lee2024_eav
+  rel: proposes
+  dst: dataset_eav
+  evidence:
+  - dataset_eav#采集
+- src: dataset_deap
+  rel: applies_to
+  dst: method_car
+  evidence:
+  - dataset_deap#预处理版格式（data_preprocessed_python）
+  note: 发行规范描述 CAR；格式相似不证明当前文件的处理历史
+- src: dataset_deap
+  rel: reports
+  dst: construct_valence
+  evidence:
+  - dataset_deap#采集
+  note: 1–9 自评
+- src: dataset_deap
+  rel: reports
+  dst: construct_arousal
+  evidence:
+  - dataset_deap#采集
+  note: 1–9 自评
+- src: dataset_mahnob
+  rel: reports
+  dst: construct_valence
+  evidence:
+  - dataset_mahnob#采集
+  note: feltVlnc 1–9
+- src: dataset_mahnob
+  rel: reports
+  dst: construct_arousal
+  evidence:
+  - dataset_mahnob#采集
+  note: feltArsl 1–9
+- src: method_de_libeer
+  rel: variant_of
+  dst: method_de
+  evidence:
+  - methods_de#不同实现与兼容条件
+- src: method_de_seed
+  rel: variant_of
+  dst: method_de
+  evidence:
+  - methods_de#不同实现与兼容条件
+- src: method_de_torcheeg
+  rel: variant_of
+  dst: method_de
+  evidence:
+  - methods_de#不同实现与兼容条件
+- src: method_de_libeer
+  rel: implemented_in
+  dst: software_libeer
+  evidence:
+  - methods_de#不同实现与兼容条件
+  note: de_extraction
+- src: method_de_torcheeg
+  rel: implemented_in
+  dst: software_torcheeg
+  evidence:
+  - methods_de#不同实现与兼容条件
+  note: BandDifferentialEntropy
+- src: method_de_libeer
+  rel: uses_band_scheme
+  dst: bands_libeer5
+  evidence:
+  - methods_de#不同实现与兼容条件
+- src: paper_zhenglu2015
+  rel: proposes
+  dst: method_de_seed
+  evidence:
+  - methods_de#不同实现与兼容条件
+  note: 256 点 STFT，62 通道 × 5 带
+- src: paper_zhenglu2015
+  rel: evaluated_on
+  dst: dataset_seed
+  evidence:
+  - methods_de#不同实现与兼容条件
+- src: method_de_libeer
+  rel: variant_of
+  dst: method_de_torcheeg
+  evidence:
+  - methods_de#不同实现与兼容条件
+  note: 频带、滤波作用范围、ddof不同；非理论矛盾，未经验证不能互换权重输入
+- src: method_lds
+  rel: implemented_in
+  dst: software_libeer
+  evidence:
+  - methods_de#窗口与平滑
+  note: 先验 0.01、过程噪声 1e-4、观测噪声 1
+- src: paper_liang_camer
+  rel: proposes
+  dst: model_camer
+  evidence:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+- src: model_camer
+  rel: requires_input
+  dst: method_de
+  evidence:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+  note: CAMER 的公开输入采用分频带 DE；具体配方与权重契约分别核对。
+- src: model_camer
+  rel: evaluated_on
+  dst: dataset_deap
+  evidence:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+  note: 32 通道 Geneva 顺序，128 Hz，四象限
+- src: model_camer
+  rel: evaluated_on
+  dst: dataset_mahnob
+  evidence:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+  note: 同 DEAP 通道顺序；自带同步面部视频
+- src: model_camer
+  rel: evaluated_on
+  dst: dataset_amigos
+  evidence:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+  note: 14 通道 EPOC 顺序
+- src: model_camer
+  rel: evaluated_on
+  dst: dataset_eav
+  evidence:
+  - models_cards#CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
+  note: 30 通道，5 s 窗，五类
+- src: model_camer
+  rel: reports
+  dst: construct_valence
+  evidence:
+  - methods_emotion_eval#标签空间
+  note: 四象限 = 高低效价 × 高低唤醒
+- src: model_camer
+  rel: reports
+  dst: construct_arousal
+  evidence:
+  - methods_emotion_eval#标签空间
+- src: paper_wang2024_eegpt
+  rel: proposes
+  dst: model_eegpt
+  evidence:
+  - models_cards#EEGPT
+- src: paper_allen2004
+  rel: defines
+  dst: method_faa
+  evidence:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+  note: 参考方式改变数值甚至符号；特质指标需多分钟静息
+- src: paper_coanallen2004
+  rel: reports
+  dst: method_faa
+  evidence:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+  note: 趋近/回避模型综述
+- src: method_faa
+  rel: indicates
+  dst: construct_approach_motivation
+  evidence:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+  note: 文献讨论群体关联；单段 FAA 正负不能判定个体动机或情绪
+- src: method_faa
+  rel: derived_from
+  dst: method_bandpower
+  evidence:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+  note: ln(右 alpha 功率) − ln(左 alpha 功率)
+- src: method_faa
+  rel: affected_by
+  dst: artifact_blink
+  evidence:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+  note: 前额通道被眨眼污染时 FAA 不可信
+- src: method_faa
+  rel: affected_by
+  dst: method_car
+  evidence:
+  - methods_spectral#额叶 alpha 不对称（FAA）
+  note: 重参考改变 FAA
+- src: method_faa
+  rel: applies_to
+  dst: device_muse2
+  evidence:
+  - devices_catalog#消费级与低通道设备
+  note: 只能用 AF7/AF8 近似，参考在 Fpz
+  confidence: 0.7
+- src: method_bandpower
+  rel: derived_from
+  dst: method_psd_welch
+  evidence:
+  - methods_spectral#PSD 与频带功率
+- src: method_bandpower
+  rel: uses_band_scheme
+  dst: bands_project_default
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+  note: 本项目工具默认；回答里写明边界
+- src: paper_kane2017
+  rel: defines
+  dst: bands_ifcn
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+- src: band_delta
+  rel: part_of
+  dst: bands_ifcn
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+  note: < 4 Hz
+- src: band_theta
+  rel: part_of
+  dst: bands_ifcn
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+  note: 4–7 Hz（4 到 < 8）
+- src: band_alpha
+  rel: part_of
+  dst: bands_ifcn
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+  note: 8–13 Hz
+- src: band_beta
+  rel: part_of
+  dst: bands_ifcn
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+  note: '>13–30Hz（IFCN2019勘误）；本项目13–30，SEED/LibEER14–30，TorchEEG14–31'
+- src: band_gamma
+  rel: part_of
+  dst: bands_ifcn
+  evidence:
+  - eeg_basics_rhythms#频带定义与不同文献的切分
+  note: '> 30 Hz'
+- src: band_delta
+  rel: affected_by
+  dst: artifact_blink
+  evidence:
+  - artifacts_catalog#眨眼
+  note: 眨眼抬高前额 delta/theta
+- src: paper_hjorth1970
+  rel: proposes
+  dst: method_hjorth
+  evidence:
+  - methods_spectral#时域与非线性特征
+- src: method_hjorth
+  rel: indicates
+  dst: artifact_electrode_pop
+  evidence:
+  - artifacts_catalog#可计算的检测启发式
+  note: activity 异常仅为可疑段筛查线索，不能单凭阈值确认伪迹类别
+- src: band_gamma
+  rel: affected_by
+  dst: artifact_emg
+  evidence:
+  - artifacts_catalog#肌电（EMG）
+  note: 未排除 EMG 前不解释 gamma
+- src: band_theta
+  rel: affected_by
+  dst: artifact_blink
+  evidence:
+  - artifacts_catalog#眨眼
+  note: 眨眼抬高前额 delta/theta
+- src: method_ica
+  rel: mitigates
+  dst: artifact_blink
+  evidence:
+  - artifacts_catalog#处理方法与出处
+  note: 分离质量依有效秩、源混合与数据；最低8道及样本比例为项目工程约定
+- src: method_ica
+  rel: mitigates
+  dst: artifact_emg
+  evidence:
+  - artifacts_catalog#处理方法与出处
+- src: method_autoreject
+  rel: mitigates
+  dst: artifact_electrode_pop
+  evidence:
+  - artifacts_catalog#处理方法与出处
+  note: 插值坏通道需要电极坐标
+- src: paper_jung2000
+  rel: reports
+  dst: method_ica
+  evidence:
+  - artifacts_catalog#处理方法与出处
+  note: 报告 ICA 在 EEG 伪迹处理中的应用
+- src: paper_mullen2015
+  rel: proposes
+  dst: method_asr
+  evidence:
+  - artifacts_catalog#处理方法与出处
+- src: paper_jas2017
+  rel: proposes
+  dst: method_autoreject
+  evidence:
+  - artifacts_catalog#处理方法与出处
+- src: method_ica
+  rel: implemented_in
+  dst: software_mne
+  evidence:
+  - artifacts_catalog#处理方法与出处
+  note: 本项目经 clean_artifacts 的 ica_iclabel 调用（Picard + ICLabel）；自定义分解可在 run_python
+    里用 mne
+- src: software_libeer
+  rel: contradicts
+  dst: method_asr
+  evidence:
+  - artifacts_catalog#处理方法与出处
+  note: LibEER 的 eog_remove 实际是空实现，并未做 ASR
+- src: device_muse2
+  rel: affected_by
+  dst: artifact_blink
+  evidence:
+  - artifacts_catalog#眨眼
+  note: 头带设备几乎必然含眨眼与 EMG
+- src: device_neurosky_mindwave
+  rel: affected_by
+  dst: artifact_blink
+  evidence:
+  - artifacts_catalog#眨眼
+- src: paper_li2022_review
+  rel: reports
+  dst: protocol_loso
+  evidence:
+  - methods_emotion_eval#泛化边界
+  note: 性能比较需具体分类任务、数据和划分协议，不能使用通用准确率区间
+- src: protocol_loso
+  rel: applies_to
+  dst: dataset_deap
+  evidence:
+  - methods_emotion_eval#划分协议决定结果可信度
+  note: 新用户不校准的真实场景
+- src: device_biosemi_activetwo
+  rel: applies_to
+  dst: method_car
+  evidence:
+  - devices_catalog#研究级设备
+  note: CMS/DRL共模控制与分析参考分开；是否实施CAR依实际记录
+  confidence: 0.7
+- src: device_openbci_cyton
+  rel: affected_by
+  dst: artifact_line_noise
+  evidence:
+  - devices_catalog#使用规则
+  note: 干电极阻抗高，工频与运动伪迹重
+- src: device_emotiv_epoc
+  rel: mitigates
+  dst: artifact_line_noise
+  evidence:
+  - devices_catalog#消费级与低通道设备
+  note: 内置 50/60 Hz 数字陷波

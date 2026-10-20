@@ -1,0 +1,118 @@
+{
+  "model_id": "camer_deap_fixed_1s_fold0",
+  "model_version": "legacy-fold0-test-selected",
+  "task": "emotion",
+  "architecture_source": "/opt/efagent/configure/manbaout.py",
+  "preprocessing_source": "/opt/efagent/configure/delds.py",
+  "backbone_path": "/opt/efagent/configure/swin-tiny-patch4-window7-224",
+  "checkpoint": "/opt/efagent/configure/model_best.pth",
+  "weight_sha256": null,
+  "labels": [
+    "LVLA",
+    "LVHA",
+    "HVLA",
+    "HVHA"
+  ],
+  "channel_names": [
+    "FP1",
+    "AF3",
+    "F3",
+    "F7",
+    "FC5",
+    "FC1",
+    "C3",
+    "T7",
+    "CP5",
+    "CP1",
+    "P3",
+    "P7",
+    "PO3",
+    "O1",
+    "OZ",
+    "PZ",
+    "FP2",
+    "AF4",
+    "FZ",
+    "F4",
+    "F8",
+    "FC6",
+    "FC2",
+    "CZ",
+    "C4",
+    "T8",
+    "CP6",
+    "CP2",
+    "P4",
+    "P8",
+    "PO4",
+    "O2"
+  ],
+  "architecture": {
+    "input_size": 768,
+    "num_classes": 4,
+    "num_heads": 12,
+    "dim_feedforward": 2048,
+    "num_encoder_layers": 2,
+    "eeg_size": 5,
+    "transformer_dropout_rate": 0.2,
+    "cls_dropout_rate": 0.1,
+    "modality_dropout_p": 0.3,
+    "num_select": 1,
+    "num_instances": 4,
+    "use_cross_attn": true,
+    "use_scl": true
+  },
+  "input_recipe": {
+    "input_stage": "deap_preprocessed_trial",
+    "waveform_preprocessing": "DEAP official preprocessed waveform; average-reference and upstream4-45Hz,128Hz are explicit source conventions, not inferred from amplitude",
+    "trial_s": 63,
+    "baseline_s": 3,
+    "window_s": 1,
+    "sample_rate_hz": 128,
+    "unit": "dataset_native",
+    "physical_voltage_unit": "unverified",
+    "reference": "average",
+    "eeg_preparation": "Original per-window order3 filtfilt five-band DE, variance ddof1 floor1e-6 log2; original LDS over full60-window stimulus, include_baseline_in_lds=False, no baseline feature subtraction, no extra normalization",
+    "bands": {
+      "delta": [
+        0.5,
+        4
+      ],
+      "theta": [
+        4,
+        8
+      ],
+      "alpha": [
+        8,
+        14
+      ],
+      "beta": [
+        14,
+        30
+      ],
+      "gamma": [
+        30,
+        50
+      ]
+    },
+    "eeg_tensor_shape": [
+      "W",
+      32,
+      5
+    ],
+    "video_tensor_shape": [
+      "W",
+      4,
+      224,
+      224,
+      3
+    ],
+    "video_sampling": "global4-second video blocks;16 frame indices uniformly spanning each block; per1-second half-open interval selects4 cached-style frames",
+    "face_crop": "Recovered and byte-validated: MediaPipe0.10.21 short-range0 confidence0.5; each bbox xywh coordinate rounded, separate x/y padding round20%, rectangular crop, INTER_AREA224, JPEG95, PIL RGB/255, original Swin normalization",
+    "face_crop_evidence": "All240 source frames in subject01/trial08 and16 frames in subject02/trial01 match original cache bytes; historical DEAP cache-generation source was not found, this is a recovered validated recipe",
+    "video_clock": "video time = original EEG time - user-recorded sync_offset_s",
+    "training_timing_limit": "Legacy training indexed video by EEG3..63 without subtracting baseline; last3 training windows used zero video. Runtime requires actual video coverage and honors the recorded offset instead of inventing missing frames.",
+    "checkpoint_selection": "legacy training selected test_accuracy; not independent held-out performance evidence",
+    "temporal_scope": "One-second outputs require complete63-second EEG context for LDS; not a one-second causal latency claim"
+  }
+}

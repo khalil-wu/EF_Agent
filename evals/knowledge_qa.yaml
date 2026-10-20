@@ -1,0 +1,60 @@
+# 知识库检索评测（python -m eegagent.knowledge eval evals/knowledge_qa.yaml）
+# 每条：q 问题；docs 期望命中的 doc_id（任一）；entities 期望出现在图谱事实/实体里的 id（任一，可选）
+
+- {q: "差分熵是怎么定义的", docs: [methods_de], entities: [method_de]}
+- {q: "CAMER 用的 DE 是哪种实现，频带怎么切", docs: [methods_de, models_cards], entities: [method_de_libeer, model_camer]}
+- {q: "SEED 的五个频带边界", docs: [methods_de], entities: [method_de_seed, dataset_seed]}
+- {q: "LDS 平滑是什么，参数多少", docs: [methods_de], entities: [method_lds]}
+- {q: "alpha 节律的频率范围和反应性", docs: [eeg_basics_rhythms], entities: [band_alpha]}
+- {q: "IFCN 对 beta 频带的定义", docs: [eeg_basics_rhythms], entities: [bands_ifcn]}
+- {q: "T3 T4 现在叫什么", docs: [eeg_basics_rhythms]}
+- {q: "共平均参考在少通道设备上有什么问题", docs: [eeg_basics_rhythms], entities: [method_car]}
+- {q: "眨眼伪迹长什么样，幅值多大", docs: [artifacts_catalog], entities: [artifact_blink]}
+- {q: "肌电会影响哪个频带", docs: [artifacts_catalog], entities: [artifact_emg, band_gamma]}
+- {q: "ASR 的截断参数应该取多少", docs: [artifacts_catalog, methods_toolboxes], entities: [method_asr]}
+- {q: "ICA 需要多少通道和数据", docs: [artifacts_catalog, methods_toolboxes], entities: [method_ica]}
+- {q: "工频占比多少算明显", docs: [artifacts_catalog], entities: [artifact_line_noise]}
+- {q: "额叶 alpha 不对称怎么算，用哪对通道", docs: [methods_spectral], entities: [method_faa]}
+- {q: "FAA 和趋近动机的关系，参考方式有没有影响", docs: [methods_spectral], entities: [method_faa, construct_approach_motivation]}
+- {q: "Welch PSD 的分段和窗", docs: [methods_spectral], entities: [method_psd_welch]}
+- {q: "Hjorth 参数的定义", docs: [methods_spectral], entities: [method_hjorth]}
+- {q: "相对功率怎么算，跨设备能不能比绝对功率", docs: [methods_spectral], entities: [method_bandpower]}
+- {q: "DEAP 预处理版的数组形状和采样率", docs: [dataset_deap], entities: [dataset_deap]}
+- {q: "DEAP 前 3 秒 baseline 怎么处理", docs: [dataset_deap]}
+- {q: "AMIGOS 用什么设备采集，跳过了哪些被试", docs: [dataset_amigos], entities: [dataset_amigos, device_emotiv_epoc]}
+- {q: "MAHNOB-HCI 的 BDF 单位和 trial 起止怎么定", docs: [dataset_mahnob], entities: [dataset_mahnob]}
+- {q: "EAV 数据集的通道数、采样率和情绪类别", docs: [dataset_eav], entities: [dataset_eav]}
+- {q: "Emotiv EPOC 的参考电极和带宽", docs: [devices_catalog], entities: [device_emotiv_epoc]}
+- {q: "OpenBCI Cyton 默认电极位置和单位换算", docs: [devices_catalog], entities: [device_openbci_cyton]}
+- {q: "Muse 2 能不能算 mu 节律", docs: [devices_catalog], entities: [device_muse2]}
+- {q: "EEGPT 的输入要求和许可证", docs: [models_cards], entities: [model_eegpt]}
+- {q: "check_model_compat 的 mappable 是什么意思", docs: [models_cards]}
+- {q: "被试独立情绪识别在 DEAP 上能到多少准确率", docs: [methods_emotion_eval], entities: [protocol_loso]}
+- {q: "情绪标签二值化的阈值", docs: [methods_emotion_eval], entities: [construct_valence]}
+- {q: "研究报告应该包含哪些部分", docs: [reporting_template]}
+- {q: "什么时候该写脚本而不是用工具", docs: [agent_playbooks]}
+- {q: "比较两个时间段的功率差异要注意什么", docs: [agent_playbooks, methods_spectral]}
+- {q: "Emotiv EPOC 采的数据能不能喂给 CAMER", docs: [dataset_amigos, models_cards], entities: [model_camer, device_emotiv_epoc]}
+# EEG 工具箱（EEGLAB ↔ MNE 生态）
+- {q: "ICLabel 对输入数据有什么要求", docs: [methods_toolboxes], entities: [method_iclabel]}
+- {q: "EEGLAB 的 runica 在 Python 里用什么代替", docs: [methods_toolboxes], entities: [method_extended_infomax, method_picard]}
+- {q: "clean_rawdata 的 ChannelCriterion 和 BurstCriterion 默认多少", docs: [methods_toolboxes], entities: [software_clean_rawdata, method_asr]}
+- {q: "PREP 判断坏道的标准是什么", docs: [methods_toolboxes], entities: [method_prep]}
+- {q: "RANSAC 坏道检测需要什么条件", docs: [methods_toolboxes], entities: [method_ransac]}
+- {q: "怎么算 alpha 峰频率和 1/f 斜率", docs: [methods_toolboxes], entities: [method_fooof]}
+- {q: "头皮 EEG 算连接性为什么要用 wPLI 而不是相干", docs: [methods_toolboxes, methods_spectral], entities: [method_wpli, term_volume_conduction]}
+- {q: "ICA 前为什么要 1 Hz 高通", docs: [methods_toolboxes], entities: [paper_winkler2015_highpass, method_ica]}
+- {q: "没有 MATLAB 怎么做 EEGLAB 的 ICLabel 流程", docs: [methods_toolboxes], entities: [software_eeglab, software_mne_icalabel]}
+- {q: "ERP 分段和基线校正在 MNE 里怎么做", docs: [methods_toolboxes], entities: [method_erp]}
+
+# 2026-10-14 新增：CAMER 正式论文与基础模型 / Agent-RAG 文献
+- {q: "CAMER 论文在哪些数据集上评测，窗口怎么切", docs: [paper_liang_camer], entities: [paper_liang_camer, model_camer]}
+- {q: "CAMER 论文的五带 DE 频带边界和输入张量", docs: [paper_liang_camer], entities: [model_camer]}
+- {q: "CAMER 论文的交叉验证协议和标签阈值", docs: [paper_liang_camer], entities: [model_camer]}
+- {q: "HEAR 怎么处理不同电极布局的设备", docs: [paper_hear2025], entities: [paper_hear2025]}
+- {q: "LUNA 的通道统一机制和预训练数据量", docs: [paper_luna2025], entities: [paper_luna2025]}
+- {q: "GraphRAG 用社区摘要回答全局问题", docs: [paper_graphrag2024], entities: [paper_graphrag2024]}
+- {q: "BGE M3-Embedding 支持哪些检索功能", docs: [paper_bgem3_2024], entities: [paper_bgem3_2024]}
+- {q: "EEGAgent 原论文的调度框架和工具", docs: [paper_eegagent2026], entities: [paper_eegagent2026]}
+- {q: "BrainAgent 的多智能体分工", docs: [paper_brainagent2026], entities: [paper_brainagent2026]}
+- {q: "HippoRAG 2 的记忆机制和检索", docs: [paper_hipporag2_2025], entities: [paper_hipporag2_2025]}

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eegagent.local/contracts/prediction.schema.json",
+  "title": "Model prediction payload",
+  "description": "Received model outputs aligned to real input windows. Saving this payload does not execute or validate an emotion classifier.",
+  "allOf": [{"$ref": "#/$defs/Summary"}],
+  "type": "object",
+  "properties": {
+    "model": {"type": "object", "description": "Actual model identity and input recipe, with input artifact/weight identity when available."},
+    "predictions": {"type": "array", "items": {"$ref": "#/$defs/Row"}}
+  },
+  "required": ["model", "predictions"],
+  "$defs": {
+    "Range": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+    "Coordinate": {
+      "type": "object",
+      "properties": {
+        "source_time_range_s": {"$ref": "#/$defs/Range"},
+        "original_time_range_s": {"$ref": "#/$defs/Range"},
+        "epoch_index": {"type": "integer"},
+        "epoch_relative_time_range_s": {"$ref": "#/$defs/Range"}
+      },
+      "required": ["source_time_range_s", "original_time_range_s"]
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "window_index": {"type": "integer"},
+        "start_s": {"type": "number", "description": "Current signal sample axis; packed epoch timing is not a continuous recording."},
+        "end_s": {"type": "number"},
+        "original_time_range_s": {"$ref": "#/$defs/Range"},
+        "epoch_index": {"type": "integer"},
+        "epoch_relative_time_range_s": {"$ref": "#/$defs/Range"},
+        "video_manifest_id": {"type": "string"},
+        "video_time_range_s": {"$ref": "#/$defs/Range", "description": "Paired video clock, derived from original EEG coordinates and the recorded offset."},
+        "label": {"type": "string"},
+        "scores": {"type": "array", "items": {"type": "number"}},
+        "values": {"type": "array", "items": {"type": "number"}}
+      },
+      "required": ["window_index", "start_s", "end_s"],
+      "oneOf": [{"required": ["label", "scores"]}, {"required": ["values"]}]
+    },
+    "Summary": {
+      "type": "object",
+      "properties": {
+        "method": {"const": "model_inference"},
+        "model_id": {"type": "string"},
+        "model_version": {"type": "string"},
+        "run_id": {"type": "string"},
+        "task": {"type": "string"},
+        "output_kind": {"enum": ["classification", "regression"]},
+        "score_kind": {"enum": ["probabilities", "logits"]},
+        "labels": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "dimensions": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "object", "properties": {"name": {"type": "string"}, "unit": {"type": "string"}}, "required": ["name", "unit"]}
+        },
+        "calibration": {
+          "type": "object", "properties": {
+            "status": {"enum": ["unknown", "uncalibrated", "calibrated"]},
+            "method": {"type": "string"}, "reference": {"type": "string"}
+          }, "required": ["status"]
+        },
+        "aggregation": {"type": ["object", "null"], "description": "Actual executor aggregation record; null means per-window outputs only."},
+        "coverage": {
+          "type": "object", "properties": {
+            "original_time_ranges_s": {"type": "array", "items": {"$ref": "#/$defs/Coordinate"}},
+            "covered_duration_s": {"type": "number"},
+            "complete": {"type": "boolean"}, "n_windows": {"type": "integer"}
+          }, "required": ["original_time_ranges_s", "covered_duration_s", "complete", "n_windows"]
+        },
+        "source_id": {"type": "string"}, "windows_id": {"type": "string"}, "time_axis": {"type": "string"},
+        "prediction_count": {"type": "integer", "minimum": 1},
+        "prediction_preview": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/Row"}}
+      },
+      "required": ["method", "model_id", "model_version", "run_id", "task", "output_kind", "source_id", "windows_id", "time_axis", "coverage", "calibration", "aggregation", "prediction_count", "prediction_preview"],
+      "allOf": [
+        {"if": {"properties": {"output_kind": {"const": "classification"}}}, "then": {"required": ["labels", "score_kind"]}},
+        {"if": {"properties": {"output_kind": {"const": "regression"}}}, "then": {"required": ["dimensions"]}}
+      ]
+    }
+  }
+}

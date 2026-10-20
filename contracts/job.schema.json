@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eegagent.local/contracts/job.schema.json",
+  "title": "Job",
+  "description": "Asynchronous worker task. Tools whose estimated runtime exceeds the async threshold return a job_id instead of a result; progress is pushed over SSE. idempotency_key lets the gateway dedupe retries and resume after a worker crash.",
+  "type": "object",
+  "properties": {
+    "job_id": { "type": "string" },
+    "idempotency_key": { "type": "string", "description": "sha256 of (tool, version, canonical args); equal keys share one execution" },
+    "session_id": { "type": "string" },
+    "tool": { "type": "string" },
+    "tool_version": { "type": "string" },
+    "args": { "type": "object" },
+    "status": { "type": "string", "enum": ["queued", "preprocessing", "inference", "aggregating", "done", "failed", "cancelled"] },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "stage_message": { "type": "string", "description": "Human-readable, e.g. '正在分析 120 个窗口'" },
+    "estimated_cost": { "type": ["number", "null"] },
+    "requires_approval": { "type": "boolean" },
+    "approved_by": { "type": ["string", "null"] },
+    "result_artifact_ids": { "type": "array", "items": { "type": "string" } },
+    "model_run_id": { "type": ["string", "null"] },
+    "error": { "type": ["object", "null"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "recoverable": { "type": "boolean" } } },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "worker_id": { "type": ["string", "null"] }
+  },
+  "required": ["job_id", "idempotency_key", "session_id", "tool", "tool_version", "args", "status", "progress", "created_at"]
+}

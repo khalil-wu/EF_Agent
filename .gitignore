@@ -1,18 +1,50 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local.ps1
+*.local.yaml
+*.local.yml
+*.pem
+*.key
 
-# Other files and folders
-.settings/
+# User data, weights, and generated results
+/data/
+/storage/
+/output/
+/tmp/
+/models/weights/
+/knowledge/sources/raw/
+/knowledge/references/
+/knowledge/papers/
+/knowledge/graph/extracted/
+/research/upstream/
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+# Dependencies and build caches
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.exe
+*.log
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+# Local tooling
+.agents/
+.claude/
+.aris/
+.workbuddy/
+.playwright-cli/
+.playwright-mcp/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

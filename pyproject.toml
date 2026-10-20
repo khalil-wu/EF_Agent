@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "efagent"
+version = "0.2.0"
+description = "An EEG and face multimodal analysis agent"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+worker = [
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "pydantic>=2",
+  "numpy>=1.26,<2.4",  # asrpy 0.0.8 uses size-one array scalar conversion removed in NumPy 2.4
+  "scipy>=1.11",
+  "matplotlib>=3.8",
+  "pillow>=10",
+  "pandas>=2.0",
+  "pyyaml>=6",
+  "mne>=1.6",
+  "pymatreader>=1.0",
+  "pymupdf>=1.24",
+]
+knowledge = ["pymupdf>=1.28.2", "pymupdf4llm>=1.28.2", "beautifulsoup4>=4.12", "markdownify>=1.2", "requests>=2.31", "pyyaml>=6"]
+knowledge-dense = ["sentence-transformers>=3.0"]
+toolbox = [
+  "mne>=1.6",
+  "mne-icalabel[onnx]>=0.7",
+  "python-picard>=0.8",
+  "pyprep>=0.5",
+  "asrpy>=0.0.8",
+  "autoreject>=0.4",
+  "mne-connectivity>=0.7",
+  "fooof>=1.1",
+  "antropy>=0.1.9",
+  "pymatreader>=1.0",
+  "eeglabio>=0.0.2",
+  "h5io>=0.2",
+]
+test = ["pytest>=8", "httpx>=0.27", "requests>=2.31", "opencv-python-headless>=4.10,<4.12"]
+evals = ["requests>=2.31", "pyyaml>=6", "numpy>=1.26", "scipy>=1.11"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]

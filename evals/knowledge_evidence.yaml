@@ -1,0 +1,30 @@
+# 人工按原论文/代码核对的原文交付问题。匹配文档定位与原文交付分开评分。
+# contains 只核对实际片段，不能代表 LLM 最终解释或全库科学正确性。
+- q: 差分熵是怎么定义的，原论文公式是什么
+  docs: [methods_de, methods_primary_decisions]
+  evidence:
+    - {doc_id: paper_duan2013, page: 2, contains: ['Gauss distribution']}
+- q: Duan 2013 的 DE 84.22% 和 ES 76.56% 是什么实验
+  docs: [methods_de]
+  evidence:
+    - {doc_id: paper_duan2013, page: 3, contains: ['84.22', '76.56']}
+- q: 额叶 alpha 不对称的公式、参考方式和效价解释
+  docs: [methods_spectral, methods_primary_decisions]
+  evidence:
+    - {doc_id: paper_smith2017_faa_primer, contains: ['ln[right]', 'ln[left]']}
+- q: DEAP 预处理版采样率、基线和标签阈值
+  docs: [dataset_deap]
+  evidence:
+    - {doc_id: doc_libeer_deap, section: 'Python 发行包读取', contains: ['fs = 128', 'pre_time = 3']}
+- q: EAV 数据集的通道、参考和任务窗口
+  docs: [dataset_eav]
+  evidence:
+    - {doc_id: paper_lee2024_eav, page: 6, contains: ['500', 'mastoids']}
+- q: CAMER 用的 DE 是哪种实现，视频每个窗口多少帧
+  docs: [models_cards, methods_de]
+  evidence:
+    - {doc_id: doc_camer_recipe, section: 'EEG 与面部视频输入', contains: ['128', 'T=4']}
+- q: ICA 的默认算法和 ASR 阈值是什么意思
+  docs: [methods_toolboxes]
+  evidence:
+    - {doc_id: doc_eeglab_runica, section: '默认参数', contains: ['DEFAULT_EXTENDED', '= 0']}

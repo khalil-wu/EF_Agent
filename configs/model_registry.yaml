@@ -1,0 +1,477 @@
+# EFAgent model contracts. Configure owned weights and an SSH executor before registering a model.
+models:
+  camer_deap_fixed_1s_fold0:
+    display_name: CAMER · DEAP · Fixed · 1 秒
+    model_version: legacy-fold0-test-selected
+    task: emotion
+    dataset: DEAP
+    modalities:
+    - eeg
+    - face_video
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: confirmed
+    input:
+      sampling_rate_hz: 128
+      channels: 32
+      channel_order: camer_deap
+      unit: dataset_native
+      reference: average
+      native_container_hints:
+      - deap_preprocessed
+      - deap_preprocessed_trial
+      preprocessing_required: deap_official_preprocessed
+      input_stage: deap_preprocessed_trial
+      trial_s: 63.0
+      baseline_s: 3.0
+      window_s: 1.0
+      feature: original_mm_builder_de_lds
+      feature_shape:
+      - 32
+      - 5
+      model_input_shape:
+      - 32
+      - 5
+      model_sampling_rate_hz: 128
+      sync_required: true
+      video:
+        frames_per_window: 4
+        size:
+        - 224
+        - 224
+        backbone: swin_tiny
+        roi: mediapipe_face_20pct
+        sampling: sixteen_frames_per_four_seconds
+    label_map:
+    - LVLA
+    - LVHA
+    - HVLA
+    - HVHA
+    label_rule: 2 * (valence >= 5) + (arousal >= 5)
+    split_protocol: five_fold_cross_trial_same_22_subjects
+    checkpoint_selection: test_accuracy
+    remote:
+      host: efagent-inference
+      python: /opt/efagent/venv/bin/python
+      root: /opt/efagent
+      gpu: 0
+      script: camer_deap_1s_infer.py
+    limitations:
+    - 配置自有权重的 file_uri、sha256 和 SSH 执行器后，将 status 设为 registered。
+  camer_eav_photo_fixed_fold0:
+    display_name: CAMER · EAV · Fixed · EEG + 视频
+    model_version: fold0-valepoch10
+    task: emotion
+    dataset: EAV
+    modalities:
+    - eeg
+    - face_video
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: confirmed
+    input:
+      sampling_rate_hz: 500
+      channels: 30
+      channel_order: camer_eav
+      unit: dataset_native
+      reference: mastoids
+      task_mode: speaking
+      trial_s: 20.0
+      window_s: 5.0
+      input_stage: raw_eav_trial
+      preprocessing_required: eav_raw
+      native_container_hints:
+      - eav_raw_trial
+      - eav_raw_segments
+      model_input_shape:
+      - 32
+      - 5
+      feature: original_eav_de_lds_5s_pad32
+      model_sampling_rate_hz: 128
+      sync_required: true
+      video:
+        frames_per_window: 6
+        candidate_fps: 4
+        jpeg_quality: 95
+        roi: full_participant_frame
+        size:
+        - 224
+        - 224
+        backbone: swin_tiny
+    label_map:
+    - neutral
+    - sad
+    - anger
+    - happy
+    - calm
+    split_protocol: cross_subject_5fold_622_fold0
+    calibration:
+      status: uncalibrated
+    window_policy: full_20s_trial_to_four_5s_windows
+    remote:
+      host: efagent-inference
+      python: /opt/efagent/venv/bin/python
+      root: /opt/efagent
+      gpu: 0
+      script: camer_eav_infer.py
+    limitations:
+    - 配置自有权重的 file_uri、sha256 和 SSH 执行器后，将 status 设为 registered。
+  eav_eegnet_emotion5_loso_fold0:
+    display_name: EEGNet · EAV 五类情绪 · LOSO fold 0
+    model_version: fold0-epoch206
+    task: emotion
+    dataset: EAV
+    modalities:
+    - eeg
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: confirmed
+    input:
+      sampling_rate_hz: 500
+      channels: 30
+      channel_order: camer_eav
+      unit: dataset_native
+      reference: mastoids
+      task_mode: speaking
+      trial_s: 20.0
+      window_s: 5.0
+      input_stage: raw_eav_trial
+      preprocessing_required: eav_raw
+      native_container_hints:
+      - eav_raw_trial
+      - eav_raw_segments
+      preprocessing: remote_eav_eegnet_recipe
+      model_input_shape:
+      - 1
+      - 30
+      - 640
+      model_sampling_rate_hz: 128
+      normalization: per_window_all_channels_and_samples_zscore
+    label_map:
+    - neutral
+    - sad
+    - anger
+    - happy
+    - calm
+    split_protocol: leave_one_subject_out_fold0
+    calibration:
+      status: uncalibrated
+    window_policy: full_20s_trial_to_four_5s_windows
+    remote:
+      host: efagent-inference
+      python: /opt/efagent/venv/bin/python
+      root: /opt/efagent
+      gpu: 0
+      script: eav_eegnet_infer.py
+    limitations:
+    - 配置自有权重的 file_uri、sha256 和 SSH 执行器后，将 status 设为 registered。
+  camer_deap_v1:
+    display_name: CAMER · DEAP
+    task: emotion
+    dataset: DEAP
+    modalities:
+    - eeg
+    - face_video
+    source_repo: https://github.com/liangyubuaa/CAMER
+    source_commit: null
+    license: project_owned_weights
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 128
+      channels: 32
+      channel_order: camer_deap
+      window_s: 1.0
+      feature: de_libeer_filtfilt_5band
+      feature_shape:
+      - 32
+      - 5
+      video:
+        frames_per_window: 4
+        roi: face
+        size:
+        - 224
+        - 224
+        backbone: swin_tiny
+      sync_required: true
+    label_map:
+    - LVLA
+    - LVHA
+    - HVLA
+    - HVHA
+    split_protocol: five_fold_cross_trial
+    metrics: null
+    calibration: null
+    window_policy: camer_1s
+  camer_mahnob_v1:
+    display_name: CAMER · MAHNOB-HCI
+    task: emotion
+    dataset: MAHNOB-HCI
+    modalities:
+    - eeg
+    - face_video
+    source_repo: https://github.com/liangyubuaa/CAMER
+    license: project_owned_weights
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 128
+      channels: 32
+      channel_order: camer_deap
+      window_s: 1.0
+      feature: de_libeer_filtfilt_5band
+      feature_shape:
+      - 32
+      - 5
+      video:
+        frames_per_window: 4
+        roi: face
+        size:
+        - 224
+        - 224
+        backbone: swin_tiny
+      sync_required: true
+    label_map:
+    - LVLA
+    - LVHA
+    - HVLA
+    - HVHA
+    split_protocol: five_fold_cross_trial
+    window_policy: camer_1s
+  camer_amigos_v1:
+    display_name: CAMER · AMIGOS
+    task: emotion
+    dataset: AMIGOS
+    modalities:
+    - eeg
+    - face_video
+    source_repo: https://github.com/liangyubuaa/CAMER
+    license: project_owned_weights
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 128
+      channels: 14
+      channel_order: camer_amigos
+      window_s: 1.0
+      feature: de_libeer_filtfilt_5band
+      feature_shape:
+      - 14
+      - 5
+      video:
+        frames_per_window: 4
+        roi: face
+        size:
+        - 224
+        - 224
+        backbone: swin_tiny
+      sync_required: true
+    label_map:
+    - LVLA
+    - LVHA
+    - HVLA
+    - HVHA
+    split_protocol: five_fold_cross_trial
+    window_policy: camer_1s
+  camer_eav_v1:
+    display_name: CAMER · EAV
+    task: emotion
+    dataset: EAV
+    modalities:
+    - eeg
+    - face_video
+    source_repo: https://github.com/liangyubuaa/CAMER
+    license: project_owned_weights
+    file_uri: null
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 128
+      channels: 30
+      channel_order: camer_eav
+      reference: mastoids
+      trial_s: 20
+      window_s: 5.0
+      feature: de_libeer_filtfilt_5band
+      feature_shape:
+      - 30
+      - 5
+      video:
+        frames_per_window: 4
+        roi: face
+        size:
+        - 224
+        - 224
+        backbone: swin_tiny
+      sync_required: true
+    label_map:
+    - neutral
+    - sadness
+    - anger
+    - happiness
+    - calmness
+    split_protocol: five_fold_cross_trial
+    window_policy: camer_5s
+  emotion_eeg_only_deap_v1:
+    display_name: EEG 情绪分类 · DEAP
+    task: emotion
+    dataset: DEAP
+    modalities:
+    - eeg
+    status: planned
+    input:
+      sampling_rate_hz: 128
+      channels: 32
+      channel_order: camer_deap
+      window_s: 1.0
+      feature: de_libeer_filtfilt_5band
+    label_map:
+    - LVLA
+    - LVHA
+    - HVLA
+    - HVHA
+    split_protocol: subject_independent
+    window_policy: camer_1s
+  eegpt_large:
+    display_name: EEGPT
+    task: embedding
+    modalities:
+    - eeg
+    source_repo: https://github.com/BINE022/EEGPT
+    license: Apache-2.0
+    file_uri: https://figshare.com/s/e37df4f8a907a866df4b
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 256
+      channels: 58
+      channel_order: eegpt_58
+      window_s: 4.0
+      patch_size: 64
+      channel_names_required: true
+    window_policy: eegpt_embedding
+  labram_base:
+    display_name: LaBraM
+    task: embedding
+    modalities:
+    - eeg
+    source_repo: https://github.com/935963004/LaBraM
+    license: MIT
+    file_uri: https://github.com/935963004/LaBraM
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 200
+      unit: uV
+      amplitude_transform: divide_uV_by_100
+      patch_s: 1.0
+      preprocessing:
+      - bandpass_0.1_75
+      - notch_50_or_60
+      channel_names_required: true
+    window_policy: spectral
+  biot:
+    display_name: BIOT
+    task: embedding
+    modalities:
+    - eeg
+    source_repo: https://github.com/ycq091044/BIOT
+    license: MIT
+    file_uri: https://github.com/ycq091044/BIOT/tree/main/pretrained-models
+    sha256: null
+    status: pending
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 200
+      amplitude_transform: per_channel_abs_amplitude_percentile_95
+      token_s: 1.0
+      token_overlap_s: 0.5
+      channel_layout_status: checkpoint_specific
+    window_policy: spectral
+  neurolm:
+    task: eeg_language_model
+    modalities:
+    - eeg
+    source_repo: https://github.com/935963004/NeuroLM
+    license: MIT
+    file_uri: https://huggingface.co/Weibang/NeuroLM
+    status: research_only
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 200
+      unit: uV
+      amplitude_transform: divide_uV_by_100
+      patch_s: 1.0
+      preprocessing:
+      - bandpass_0.1_75
+      - notch_50_or_60
+  bendr:
+    task: embedding_baseline
+    modalities:
+    - eeg
+    source_repo: https://github.com/SPOClab-ca/BENDR
+    license: none_found
+    file_uri: https://github.com/SPOClab-ca/BENDR/releases/tag/v0.1-alpha
+    status: research_only
+    input_contract_status: pending
+    input:
+      sampling_rate_hz: 256
+      public_recipe_eeg_channels: 19
+      public_recipe_auxiliary_channels: 1
+      amplitude_transform: per_sequence_minmax_minus1_plus1
+      missing_channel_policy: public_recipe_zero_fill
+  eegnet_emotion_custom:
+    display_name: EEGNet · 自有情绪模型
+    task: emotion
+    modalities:
+    - eeg
+    status: planned
+    input_contract_status: pending
+    file_uri: null
+    sha256: null
+    input: {}
+    label_map: []
+    split_protocol: null
+  sleep_stager_custom:
+    display_name: 自有睡眠分期模型
+    task: sleep_stage
+    modalities:
+    - eeg
+    status: planned
+    input_contract_status: pending
+    file_uri: null
+    sha256: null
+    input:
+      window_s: 30.0
+    label_map: []
+    split_protocol: null
+  face_detector_generic:
+    task: face_detection
+    modalities:
+    - video
+    candidates:
+    - retinaface
+    - mediapipe
+    status: planned
+  face_expression_generic:
+    task: facial_expression
+    modalities:
+    - video
+    candidates:
+    - hsemotion
+    - ddamfn
+    status: planned
+    input:
+      frames: face_roi_224

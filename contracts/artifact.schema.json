@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eegagent.local/contracts/artifact.schema.json",
+  "title": "Artifact",
+  "description": "Any persisted, citable product of a tool: normalized signal, window table, feature matrix, prediction, plot, report. The prompt sees only this record; the payload lives at uri. artifact_id is content-addressed: sha256 of (tool name, tool version, canonical inputs).",
+  "type": "object",
+  "properties": {
+    "artifact_id": { "type": "string" },
+    "kind": { "type": "string", "enum": ["normalized_signal", "windows", "features", "embedding", "prediction", "emotion_assessment", "aggregate", "video_frames", "expression_timeline", "plot", "report", "table", "compat_report"] },
+    "uri": { "type": "string" },
+    "media_type": { "type": "string" },
+    "representations": {
+      "type": "object",
+      "description": "The same figure in registered preview/vector formats, without duplicating visible artifacts.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": { "uri": { "type": "string" }, "media_type": { "type": "string" } },
+        "required": ["uri", "media_type"]
+      }
+    },
+    "source_manifest_ids": { "type": "array", "items": { "type": "string" } },
+    "parent_artifact_ids": { "type": "array", "items": { "type": "string" } },
+    "time_range_s": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "shape": { "type": "array", "items": { "type": "integer" } },
+    "signal": {"$ref": "manifest.schema.json#/$defs/SignalGeometry"},
+    "analysis": {"type": "object", "description": "Model-readable source identity, source/original/event-relative time axes, window support, aggregation and effective measurement settings. Full segment geometry stays in signal.segments and can be paged with read_artifact(part=segments)."},
+    "summary": { "type": "object", "description": "Small, prompt-safe summary (e.g. band powers, top windows). Never the full matrix." },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "created_by": { "type": "string", "description": "tool@version" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "job_id": { "type": ["string", "null"] },
+        "params": { "type": "object" },
+        "steps": { "type": "array", "items": { "type": "string" }, "description": "cumulative processing steps, e.g. [\"unit_uV\", \"notch_50\", \"bandpass_0.5_50\", \"resample_128\"]. Checked by tool requires." },
+        "model_run_id": { "type": ["string", "null"] },
+        "model_id": { "type": ["string", "null"] },
+        "weight_sha256": { "type": ["string", "null"] },
+        "window_policy": { "type": ["string", "null"] }
+      },
+      "required": ["created_by", "created_at", "params", "steps"]
+    }
+  },
+  "required": ["artifact_id", "kind", "uri", "source_manifest_ids", "provenance"],
+  "allOf": [{
+    "if": {"properties": {"kind": {"const": "prediction"}, "summary": {"properties": {"method": {"const": "model_inference"}}, "required": ["method"]}}, "required": ["kind", "summary"]},
+    "then": {"properties": {"summary": {"$ref": "prediction.schema.json#/$defs/Summary"}}}
+  }]
+}

@@ -1,0 +1,49 @@
+entities:
+- id: method_connectivity_selection
+  type: method
+  name: EEG连接性指标选择
+  aliases:
+  - 连接性偏差
+  - wPLI
+  - wpli2_debiased
+  - PPC
+  - imcoh
+  - PLV
+  summary: 统计连接指标、有限样本偏差、瞬时混合与参考的适用边界。
+  refs:
+  - methods_connectivity_selection_and_interpretation#按分析问题选择估计器
+- id: method_aperiodic_spectrum
+  type: method
+  name: 周期与非周期谱参数化
+  aliases:
+  - 非周期谱
+  - FOOOF
+  - specparam
+  - aperiodic
+  - 1/f背景
+  summary: 线性PSD输入、log功率模型、拟合范围与版本化参数口径。
+  refs:
+  - methods_periodic_aperiodic_spectral_analysis#什么问题需要谱参数化
+- id: protocol_eval_uncertainty
+  type: protocol
+  name: EEG分组评估与不确定性
+  aliases:
+  - 试次泄漏
+  - 被试划分
+  - 分布变化
+  - 预测不确定性
+  - 数据泄漏
+  summary: 按person/session/trial隔离、冻结模型选择与聚合，概率校准在目标域验证。
+  refs:
+  - methods_eval_uncertainty#先定义要推广到谁
+relations:
+- src: method_connectivity_selection
+  rel: cites
+  dst: paper_vinck2011_wpli
+  evidence:
+  - methods_connectivity_selection_and_interpretation#虚部指标减弱什么，保留什么盲区
+- src: method_aperiodic_spectrum
+  rel: cites
+  dst: paper_donoghue2020_fooof
+  evidence:
+  - methods_periodic_aperiodic_spectral_analysis#什么问题需要谱参数化

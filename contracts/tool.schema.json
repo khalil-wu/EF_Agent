@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eegagent.local/contracts/tool.schema.json",
+  "title": "ToolDefinition",
+  "description": "Definition of one model-visible tool. The gateway validates args against input_schema, enforces permission_mode and requires in the before_tool hook, and forwards execution to the Python worker. Tool declarations are sent to the LLM sorted by name so the prompt prefix stays cacheable.",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "version": { "type": "string" },
+    "description": { "type": "string", "maxLength": 1024 },
+    "input_schema": { "type": "object", "description": "JSON Schema for args" },
+    "output_schema": { "type": "object", "description": "JSON Schema for the result; must include status, artifact_id(s), provenance" },
+    "runtime": { "type": "string", "enum": ["python_worker", "gateway"] },
+    "async": { "type": "boolean" },
+    "execution_mode": { "type": "string", "enum": ["parallel", "sequential"], "description": "sequential for tools that write to the same signal" },
+    "permission_mode_min": { "type": "string", "enum": ["readonly", "write_normalized", "gpu"] },
+    "estimated_cost": { "type": "string", "description": "expression over args, e.g. n_windows * n_channels" },
+    "requires": {
+      "type": "object",
+      "description": "Deterministic preconditions checked by before_tool. Keys are dotted paths into the referenced artifact/manifest; blocked calls return the reason to the model.",
+      "properties": {
+        "artifact_kind": { "type": "object", "additionalProperties": { "type": "string" }, "description": "arg name -> required artifact.kind" },
+        "provenance_steps": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } }, "description": "arg name -> steps that must appear in artifact.provenance.steps" },
+        "manifest_fields_known": { "type": "array", "items": { "type": "string" }, "description": "manifest fields whose Inferred.source must not be 'unknown', e.g. channel_layout, unit" },
+        "model_compat": { "type": "string", "enum": ["compatible", "mappable"], "description": "for run_model: minimum compat status of the chosen model_id on the input manifest" },
+        "sync_required": { "type": "boolean" }
+      }
+    },
+    "internal_functions": { "type": "array", "items": { "type": "string" }, "description": "worker functions this coarse tool dispatches to (documentation only)" }
+  },
+  "required": ["name", "version", "description", "input_schema", "output_schema", "runtime", "async", "permission_mode_min"],
+  "examples": [
+    {
+      "name": "extract_features",
+      "version": "1.1",
+      "description": "对窗口表计算特征，输出 features 产物和摘要。features：psd, bandpower, de, hjorth, band_stats, spectral_entropy, asymmetry, connectivity。de 需要 de_method 二选一（默认 libeer_filtfilt）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "windows_id": { "type": "string", "description": "segment_signal 产物 id" },
+          "features": { "type": "array", "items": { "type": "string", "enum": ["psd", "bandpower", "de", "hjorth", "band_stats", "spectral_entropy", "asymmetry", "connectivity"] } },
+          "bands": { "type": "string", "enum": ["standard", "camer_5band"], "default": "standard" },
+          "de_method": { "type": "string", "enum": ["libeer_filtfilt", "torcheeg_var"], "default": "libeer_filtfilt" }
+        },
+        "required": ["windows_id", "features"]
+      },
+      "output_schema": { "type": "object" },
+      "runtime": "python_worker",
+      "async": false,
+      "execution_mode": "parallel",
+      "permission_mode_min": "readonly",
+      "estimated_cost": "n_windows * n_channels",
+      "requires": {
+        "artifact_kind": { "windows_id": "windows" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+# 分析与窗口参考模板；当前 src/gateway 未读取此文件，不是运行时默认。
+# 发行规范、reader 算子和实际 checkpoint 契约分别见知识卡、源码与 registry。
+# 下列通用参数仅供探索选择，不证明上传数据已处理，也不决定输入物理单位。
+
+defaults:
+  generic:
+    bandpass_hz: [0.5, 50.0]
+    notch_hz: region_dependent   # 50 或 60，按设备/地区；未知时在回答里说明
+    unit: null                 # 由文件头/可信记录确定；未知数值不自动标为 uV
+
+# 保留 registry 已引用的名称。CAMER/EEGPT 窗长是公开 recipe 参考，
+# 不是自有权重已核实的输入契约；null 项需由实际执行器/训练配置给出。
+window_policies:
+  camer_1s:                      # CAMER 公开 DEAP / MAHNOB / AMIGOS recipe
+    window_s: 1.0
+    stride_s: 1.0
+    partial: null
+    aggregation: null            # 未核实窗口聚合，不能假设 attention/top-k
+  camer_5s:                      # CAMER 公开 EAV recipe
+    window_s: 5.0
+    stride_s: 5.0
+    partial: null
+    aggregation: null
+  eegpt_embedding:               # 公开 4 s 输入参考；步长/尾窗/聚合另核
+    window_s: 4.0
+    stride_s: null
+    partial: null
+    aggregation: null
+  spectral:                     # 通用探索示例，不覆盖模型专属 recipe
+    window_s: 4.0
+    stride_s: 2.0
+    partial: drop
+    aggregation: null            # 按实际任务与工具输出说明
+
+# 实际切窗可选择 start_s/end_s，或按连续段/epoch/事件范围处理。
+# max_windows 是工具调用的预算选择，不在这里固定为全文件抽样策略；
+# 子范围分析、预算抽样与完整覆盖分别报告，不由候选窗口宣称全段完成。

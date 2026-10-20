@@ -1,0 +1,630 @@
+entities:
+- id: software_eeglab
+  type: software
+  name: EEGLAB
+  aliases:
+  - eeglab
+  - EEGLAB toolbox
+  summary: MATLAB 的 EEG 分析工具箱（runica、ICLabel、clean_rawdata、STUDY）；本项目环境没有 MATLAB，用
+    MNE 生态等价实现。
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- id: software_mne
+  type: software
+  name: MNE-Python
+  aliases:
+  - MNE-Python
+  - mne-python
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  - methods_toolboxes#在本项目里怎么用
+- id: software_clean_rawdata
+  type: software
+  name: clean_rawdata
+  aliases:
+  - clean_rawdata
+  - pop_clean_rawdata
+  - clean_artifacts.m
+  summary: EEGLAB 插件：平坦/相关性/工频判据删坏道，BurstCriterion 用 ASR 修复突发伪迹。
+  refs:
+  - methods_toolboxes#ASR 与 clean_rawdata
+- id: software_mne_icalabel
+  type: software
+  name: MNE-ICALabel
+  aliases:
+  - mne-icalabel
+  - mne_icalabel
+  summary: ICLabel 网络的 Python 移植，对 MNE 的 ICA 成分分类。
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: software_picard
+  type: software
+  name: python-picard
+  aliases:
+  - python-picard
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: software_asrpy
+  type: software
+  name: asrpy
+  aliases:
+  - asrpy
+  summary: ASR 的 Python 实现，接受 MNE Raw。
+  refs:
+  - methods_toolboxes#ASR 与 clean_rawdata
+- id: software_pyprep
+  type: software
+  name: PyPREP
+  aliases:
+  - pyprep
+  - NoisyChannels
+  summary: PREP 流程的 Python 实现；NoisyChannels 做坏道检测。
+  refs:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- id: software_autoreject
+  type: software
+  name: autoreject
+  aliases:
+  - autoreject 包
+  refs:
+  - methods_toolboxes#Autoreject 与分段剔除
+- id: software_fooof
+  type: software
+  name: FOOOF / specparam
+  aliases:
+  - fooof
+  - specparam
+  - FOOOFGroup
+  refs:
+  - methods_toolboxes#频谱参数化（FOOOF / specparam）
+- id: software_mne_connectivity
+  type: software
+  name: mne-connectivity
+  aliases:
+  - mne-connectivity
+  - mne_connectivity
+  - spectral_connectivity_epochs
+  refs:
+  - methods_toolboxes#连接性（mne-connectivity）
+- id: software_antropy
+  type: software
+  name: antropy
+  aliases:
+  - antropy
+  - AntroPy
+  refs:
+  - methods_toolboxes#非线性与复杂度指标（antropy）
+- id: method_extended_infomax
+  type: method
+  name: 扩展 infomax ICA
+  aliases:
+  - extended infomax
+  - runica
+  - infomax ICA
+  summary: 可处理亚高斯与超高斯源的extended infomax；所核runica源码需显式extended=1，非默认。
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: method_picard
+  type: method
+  name: Picard ICA
+  aliases:
+  - Picard
+  - picard ICA
+  summary: 预条件L-BFGS求解ICA；ortho=False、extended=True配置与扩展infomax目标对应，速度依数据。
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: method_iclabel
+  type: method
+  name: ICLabel
+  aliases:
+  - ICLabel
+  - IC 自动分类
+  - 成分分类
+  summary: 独立成分 7 类分类器（Brain、Muscle、Eye、Heart、Line Noise、Channel Noise、Other）。
+  attrs:
+    classes:
+    - brain
+    - muscle
+    - eye
+    - heart
+    - line_noise
+    - channel_noise
+    - other
+    input: 平均参考、1–100 Hz、扩展 infomax、电极坐标
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: method_prep
+  type: method
+  name: PREP 坏道检测
+  aliases:
+  - PREP
+  - PREP pipeline
+  - 坏道检测
+  - bad channel detection
+  - 坏道
+  summary: 原论文与PyPREP版本默认分别记录；相关判据为绝对相关第98百分位，非最大相关。
+  refs:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- id: method_ransac
+  type: method
+  name: RANSAC 坏道检测
+  aliases:
+  - RANSAC
+  summary: 随机 25% 通道球面样条预测，5 s 窗相关 <0.75 的占比 >40% 判为坏道；需要电极坐标。
+  refs:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- id: method_spherical_spline
+  type: method
+  name: 球面样条插值
+  aliases:
+  - spherical spline
+  - 坏道插值
+  - interpolate_bads
+  - pop_interp
+  refs:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- id: method_fir_filter
+  type: method
+  name: 零相位 FIR 滤波
+  aliases:
+  - FIR
+  - pop_eegfiltnew
+  - 加窗 sinc FIR
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- id: method_erp
+  type: method
+  name: 事件相关电位
+  aliases:
+  - ERP
+  - 事件相关电位
+  - evoked
+  - 分段平均
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- id: method_ersp
+  type: method
+  name: 事件相关时频（ERSP）
+  aliases:
+  - ERSP
+  - 时频分析
+  - time-frequency
+  - Morlet
+  - newtimef
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- id: method_fooof
+  type: method
+  name: 频谱参数化
+  aliases:
+  - spectral parameterization
+  - 1/f
+  - 非周期成分
+  - aperiodic exponent
+  - 1/f 斜率
+  - alpha 峰频率
+  summary: 在对数功率空间拟合非周期背景与周期峰；exponent是非周期参数，解释依拟合条件。
+  refs:
+  - methods_toolboxes#频谱参数化（FOOOF / specparam）
+- id: method_wpli
+  type: method
+  name: wPLI
+  aliases:
+  - weighted phase lag index
+  - 加权相位滞后指数
+  - wpli2_debiased
+  refs:
+  - methods_toolboxes#连接性（mne-connectivity）
+- id: method_imcoh
+  type: method
+  name: 虚部相干
+  aliases:
+  - imaginary coherence
+  - imcoh
+  refs:
+  - methods_toolboxes#连接性（mne-connectivity）
+- id: term_volume_conduction
+  type: term
+  name: 容积传导
+  aliases:
+  - volume conduction
+  - 体积传导
+  summary: 同一源经头皮传到多个电极，造成零相位滞后的虚假耦合。
+  refs:
+  - methods_toolboxes#连接性（mne-connectivity）
+- id: paper_delorme2004_eeglab
+  type: paper
+  name: Delorme & Makeig 2004 (EEGLAB)
+  aliases:
+  - Delorme 2004
+  - EEGLAB paper
+  attrs:
+    venue: J Neurosci Methods 134:9-21
+    year: 2004
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- id: paper_gramfort2013_mne
+  type: paper
+  name: Gramfort et al. 2013 (MNE-Python)
+  aliases:
+  - Gramfort 2013
+  - MNE paper
+  attrs:
+    venue: Front Neurosci 7:267
+    year: 2013
+  refs:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- id: paper_piontonachini2019
+  type: paper
+  name: Pion-Tonachini et al. 2019 (ICLabel)
+  aliases:
+  - Pion-Tonachini 2019
+  - ICLabel paper
+  attrs:
+    venue: NeuroImage 198:181-197
+    year: 2019
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: paper_li2022_mneicalabel
+  type: paper
+  name: Li et al. 2022 (MNE-ICALabel)
+  aliases:
+  - MNE-ICALabel paper
+  attrs:
+    venue: JOSS 7(76):4484
+    year: 2022
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: paper_lee1999_infomax
+  type: paper
+  name: Lee, Girolami & Sejnowski 1999
+  aliases:
+  - Lee 1999
+  - extended infomax paper
+  attrs:
+    venue: Neural Comput 11(2):417-441
+    year: 1999
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: paper_ablin2018_picard
+  type: paper
+  name: Ablin, Cardoso & Gramfort 2018 (Picard)
+  aliases:
+  - Ablin 2018
+  - Picard paper
+  attrs:
+    venue: IEEE Trans Signal Process 66(15):4040-4049
+    year: 2018
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: paper_winkler2015_highpass
+  type: paper
+  name: Winkler et al. 2015 (高通与 ICA)
+  aliases:
+  - Winkler 2015
+  attrs:
+    venue: IEEE EMBC 2015, PMID 26737196
+    year: 2015
+  refs:
+  - methods_toolboxes#ICA 与 ICLabel
+- id: paper_chang2020
+  type: paper
+  name: Chang et al. 2020 (ASR 参数评估)
+  aliases:
+  - Chang 2020
+  attrs:
+    venue: IEEE TBME 67(4):1114-1121
+    year: 2020
+  refs:
+  - methods_toolboxes#ASR 与 clean_rawdata
+- id: paper_bigdelyshamlo2015_prep
+  type: paper
+  name: Bigdely-Shamlo et al. 2015 (PREP)
+  aliases:
+  - Bigdely-Shamlo 2015
+  - PREP paper
+  attrs:
+    venue: Front Neuroinform 9:16
+    year: 2015
+  refs:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- id: paper_donoghue2020_fooof
+  type: paper
+  name: Donoghue et al. 2020 (FOOOF)
+  aliases:
+  - Donoghue 2020
+  - FOOOF paper
+  attrs:
+    venue: Nat Neurosci 23:1655-1665
+    year: 2020
+  refs:
+  - methods_toolboxes#频谱参数化（FOOOF / specparam）
+- id: paper_vinck2011_wpli
+  type: paper
+  name: Vinck et al. 2011 (wPLI)
+  aliases:
+  - Vinck 2011
+  attrs:
+    venue: NeuroImage 55(4):1548-1565
+    year: 2011
+  refs:
+  - methods_toolboxes#连接性（mne-connectivity）
+- id: paper_nolte2004_imcoh
+  type: paper
+  name: Nolte et al. 2004 (虚部相干)
+  aliases:
+  - Nolte 2004
+  attrs:
+    venue: Clin Neurophysiol 115(10):2292-2307
+    year: 2004
+  refs:
+  - methods_toolboxes#连接性（mne-connectivity）
+relations:
+- src: paper_delorme2004_eeglab
+  rel: proposes
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- src: paper_gramfort2013_mne
+  rel: proposes
+  dst: software_mne
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+- src: software_clean_rawdata
+  rel: part_of
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#ASR 与 clean_rawdata
+  note: EEGLAB 插件
+- src: software_mne_icalabel
+  rel: variant_of
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: 移植了 EEGLAB 的 ICLabel 插件网络
+  confidence: 0.8
+- src: method_extended_infomax
+  rel: variant_of
+  dst: method_ica
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: paper_lee1999_infomax
+  rel: proposes
+  dst: method_extended_infomax
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: method_extended_infomax
+  rel: implemented_in
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: runica('extended',1)
+- src: method_picard
+  rel: variant_of
+  dst: method_extended_infomax
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: ortho=False, extended=True 时优化同一目标函数
+- src: paper_ablin2018_picard
+  rel: proposes
+  dst: method_picard
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: method_picard
+  rel: implemented_in
+  dst: software_picard
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: method_picard
+  rel: implemented_in
+  dst: software_mne
+  evidence:
+  - methods_toolboxes#在本项目里怎么用
+  note: mne.preprocessing.ICA(method='picard')；clean_artifacts 的 ica_iclabel 使用
+- src: paper_winkler2015_highpass
+  rel: reports
+  dst: method_ica
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: 1–2 Hz 高通后拟合 ICA 分解更稳定，解混矩阵再用到原始数据
+- src: paper_piontonachini2019
+  rel: proposes
+  dst: method_iclabel
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: paper_li2022_mneicalabel
+  rel: proposes
+  dst: software_mne_icalabel
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: method_iclabel
+  rel: implemented_in
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: ICLabel 插件 + pop_icflag
+- src: method_iclabel
+  rel: implemented_in
+  dst: software_mne_icalabel
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: method_iclabel
+  rel: requires_input
+  dst: method_extended_infomax
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: 为扩展 infomax 分解设计；另需平均参考、1–100 Hz 滤波与电极坐标
+- src: method_iclabel
+  rel: requires_input
+  dst: method_car
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: 输入数据应为平均参考
+- src: method_iclabel
+  rel: applies_to
+  dst: method_ica
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: 对每个独立成分分 7 类
+- src: method_iclabel
+  rel: mitigates
+  dst: artifact_emg
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+  note: 识别 Muscle 成分
+- src: method_iclabel
+  rel: mitigates
+  dst: artifact_eye_movement
+  evidence:
+  - methods_toolboxes#ICA 与 ICLabel
+- src: method_asr
+  rel: implemented_in
+  dst: software_asrpy
+  evidence:
+  - methods_toolboxes#ASR 与 clean_rawdata
+  note: clean_artifacts 的 asr 使用
+- src: method_asr
+  rel: mitigates
+  dst: artifact_emg
+  evidence:
+  - methods_toolboxes#ASR 与 clean_rawdata
+  note: 短时大幅突发（咬牙、运动）
+- src: paper_bigdelyshamlo2015_prep
+  rel: proposes
+  dst: method_prep
+  evidence:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- src: method_prep
+  rel: implemented_in
+  dst: software_pyprep
+  evidence:
+  - methods_toolboxes#坏道检测（PREP）与插值
+  note: PyPREP0.9.0与原论文默认分别记录；相关判据为绝对相关第98百分位
+- src: method_ransac
+  rel: part_of
+  dst: method_prep
+  evidence:
+  - methods_toolboxes#坏道检测（PREP）与插值
+- src: method_ransac
+  rel: requires_input
+  dst: method_spherical_spline
+  evidence:
+  - methods_toolboxes#坏道检测（PREP）与插值
+  note: 用随机 25% 通道的球面样条预测，需要全部电极坐标
+- src: method_prep
+  rel: indicates
+  dst: artifact_electrode_pop
+  evidence:
+  - methods_toolboxes#坏道检测（PREP）与插值
+  note: 平坦、偏差、高频噪声、低相关
+- src: method_spherical_spline
+  rel: mitigates
+  dst: artifact_electrode_pop
+  evidence:
+  - methods_toolboxes#坏道检测（PREP）与插值
+  note: 依电极覆盖、坏道位置与用途；四分之一限制为项目政策
+- src: method_spherical_spline
+  rel: implemented_in
+  dst: software_mne
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  note: raw.interpolate_bads；EEGLAB 为 pop_interp
+- src: method_autoreject
+  rel: implemented_in
+  dst: software_autoreject
+  evidence:
+  - methods_toolboxes#Autoreject 与分段剔除
+- src: method_autoreject
+  rel: applies_to
+  dst: method_erp
+  evidence:
+  - methods_toolboxes#Autoreject 与分段剔除
+  note: 需要分段数据与电极坐标
+- src: method_erp
+  rel: implemented_in
+  dst: software_mne
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  note: mne.Epochs + average；EEGLAB 为 pop_epoch / pop_rmbase
+- src: method_ersp
+  rel: implemented_in
+  dst: software_mne
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  note: compute_tfr('morlet')；EEGLAB 为 newtimef
+- src: method_ersp
+  rel: implemented_in
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  note: newtimef
+- src: method_fir_filter
+  rel: implemented_in
+  dst: software_eeglab
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  note: pop_eegfiltnew
+- src: method_fir_filter
+  rel: implemented_in
+  dst: software_mne
+  evidence:
+  - methods_toolboxes#EEGLAB 流程与 Python 实现的对应
+  note: raw.filter 默认；preprocess bandpass method=fir
+- src: paper_donoghue2020_fooof
+  rel: proposes
+  dst: method_fooof
+  evidence:
+  - methods_toolboxes#频谱参数化（FOOOF / specparam）
+- src: method_fooof
+  rel: implemented_in
+  dst: software_fooof
+  evidence:
+  - methods_toolboxes#频谱参数化（FOOOF / specparam）
+- src: method_fooof
+  rel: applies_to
+  dst: band_alpha
+  evidence:
+  - methods_toolboxes#频谱参数化（FOOOF / specparam）
+  note: 分离拟合的非周期背景与周期峰；需检查拟合范围、误差和模型假设
+- src: paper_vinck2011_wpli
+  rel: proposes
+  dst: method_wpli
+  evidence:
+  - methods_toolboxes#连接性（mne-connectivity）
+- src: paper_nolte2004_imcoh
+  rel: proposes
+  dst: method_imcoh
+  evidence:
+  - methods_toolboxes#连接性（mne-connectivity）
+- src: method_wpli
+  rel: implemented_in
+  dst: software_mne_connectivity
+  evidence:
+  - methods_toolboxes#连接性（mne-connectivity）
+- src: method_imcoh
+  rel: implemented_in
+  dst: software_mne_connectivity
+  evidence:
+  - methods_toolboxes#连接性（mne-connectivity）
+- src: method_wpli
+  rel: mitigates
+  dst: term_volume_conduction
+  evidence:
+  - methods_toolboxes#连接性（mne-connectivity）
+  note: 对零相位滞后不敏感
+- src: method_imcoh
+  rel: mitigates
+  dst: term_volume_conduction
+  evidence:
+  - methods_toolboxes#连接性（mne-connectivity）
+- src: method_spectral_entropy
+  rel: implemented_in
+  dst: software_antropy
+  evidence:
+  - methods_toolboxes#非线性与复杂度指标（antropy）
+- src: method_hjorth
+  rel: implemented_in
+  dst: software_antropy
+  evidence:
+  - methods_toolboxes#非线性与复杂度指标（antropy）
+  note: hjorth_params

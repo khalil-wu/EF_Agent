@@ -1,0 +1,725 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eegagent.local/contracts/manifest.schema.json",
+  "title": "Manifest",
+  "description": "Unified metadata for one uploaded attachment. EEG arrays remain in tools; submitted images are supplied as image input to the conversation model.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SignalManifest"
+    },
+    {
+      "$ref": "#/$defs/VideoManifest"
+    },
+    {
+      "$ref": "#/$defs/DocumentManifest"
+    },
+    {
+      "$ref": "#/$defs/ImageManifest"
+    }
+  ],
+  "$defs": {
+    "SignalGeometry": {
+      "type": "object",
+      "description": "Current sample coordinates and their relation to original file samples. Packed epochs are discontinuous and each segment retains its own event-relative origin.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "continuous",
+            "epochs"
+          ]
+        },
+        "sample_rate_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "channel_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "channel_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "amplitude_unit": {
+          "type": "string"
+        },
+        "time_offset_s": {
+          "type": "number",
+          "description": "Only for one continuous segment. Epoch transforms use per-segment coordinates."
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SignalSegment"
+          }
+        }
+      }
+    },
+    "SignalSegment": {
+      "type": "object",
+      "properties": {
+        "start_sample": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_sample": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "original_start_s": {
+          "type": "number"
+        },
+        "original_end_s": {
+          "type": "number"
+        },
+        "epoch_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "epoch_tmin_s": {
+          "type": "number"
+        },
+        "original_epoch_tmin_s": {
+          "type": "number"
+        },
+        "event_code": {
+          "type": "integer"
+        },
+        "event_label": {
+          "type": "string"
+        },
+        "original_event_sample": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_sample",
+        "end_sample",
+        "original_start_s"
+      ]
+    },
+    "Inferred": {
+      "type": "object",
+      "description": "A metadata value with its evidence source; confidence, when present, is not dataset authentication.",
+      "properties": {
+        "value": {},
+        "source": {
+          "type": "string",
+          "enum": [
+            "file_header",
+            "dataset_adapter",
+            "device_lookup",
+            "user_confirmed",
+            "user_declared",
+            "file_content",
+            "format_assumption",
+            "generated",
+            "derived_time_column",
+            "inferred",
+            "unknown"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "value",
+        "source"
+      ]
+    },
+    "CompatResult": {
+      "type": "object",
+      "properties": {
+        "model_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "compatible",
+            "mappable",
+            "incompatible"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_channels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "model_id",
+        "status",
+        "reasons"
+      ]
+    },
+    "SignalManifest": {
+      "type": "object",
+      "properties": {
+        "manifest_id": {
+          "type": "string"
+        },
+        "modality": {
+          "const": "eeg"
+        },
+        "attachment_sha256": {
+          "type": "string",
+          "description": "Local content identity, including sidecars when applicable; no claim about official dataset origin."
+        },
+        "original_name": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_format": {
+          "type": "string",
+          "enum": [
+            "edf",
+            "bdf",
+            "gdf",
+            "cnt",
+            "mat",
+            "dat",
+            "npy",
+            "npz",
+            "csv",
+            "txt",
+            "tsv",
+            "vhdr",
+            "set",
+            "fif",
+            "mff",
+            "ahdr",
+            "eeg",
+            "nxe",
+            "lay",
+            "cdt",
+            "nedf"
+          ]
+        },
+        "dataset": {
+          "type": "string",
+          "description": "Declared dataset name or unknown; consult metadata_evidence, never infer official origin from this field."
+        },
+        "format_profile": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Reader's structural format candidate, such as deap_preprocessed; not proof of source or preprocessing."
+        },
+        "metadata_evidence": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Inferred"
+          },
+          "description": "Observed file facts, user declarations and format assumptions kept separate by field. origin remains unverified without an actual trusted source comparison."
+        },
+        "subject_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trial_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trial_index": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "sample_rate_hz": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "description": "null = 未知，需用户补充"
+        },
+        "n_channels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "n_samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "duration_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "channel_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "channel_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "与 channel_names 等长：eeg | eog | ecg | emg | stim | misc 等"
+        },
+        "signal_kind": {
+          "enum": [
+            "continuous",
+            "epochs"
+          ]
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SignalSegment"
+          }
+        },
+        "channel_layout": {
+          "$ref": "#/$defs/Inferred",
+          "description": "value: mapping raw name -> 10-20 name, or null"
+        },
+        "unit": {
+          "$ref": "#/$defs/Inferred",
+          "description": "value: uV | mV | V | dataset_native (unconverted dataset scale, physical unit unknown) | unknown"
+        },
+        "reference": {
+          "type": "string",
+          "enum": [
+            "referential",
+            "bipolar",
+            "average",
+            "mastoids",
+            "unknown"
+          ]
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "onset_s": {
+                "type": "number"
+              },
+              "duration_s": {
+                "type": "number"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "onset_s",
+              "label"
+            ]
+          }
+        },
+        "labels": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "File label values; names are included only when their semantics are confirmed. These are annotations, not model predictions."
+        },
+        "quality": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "score": {
+              "type": "number"
+            },
+            "flat_channels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "line_noise_ratio": {
+              "type": "number"
+            },
+            "artifact_ratio": {
+              "type": "number"
+            }
+          }
+        },
+        "sync": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "clock": {
+              "type": "string",
+              "enum": [
+                "absolute",
+                "eeg_original",
+                "trial_relative",
+                "none"
+              ]
+            },
+            "start_offset_s": {
+              "type": "number"
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        },
+        "compat": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CompatResult"
+          },
+          "description": "check_model_compat results computed at upload time"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "upload_group_id": {
+          "type": "string",
+          "description": "One upload selection/version directory; related files retain their original names."
+        },
+        "source_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Actual header/data/marker paths comprising the record."
+        },
+        "trial_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "trial_selection": {
+          "enum": [
+            "single",
+            "explicit",
+            "default_first"
+          ]
+        }
+      },
+      "required": [
+        "manifest_id",
+        "modality",
+        "attachment_sha256",
+        "source_format",
+        "dataset",
+        "sample_rate_hz",
+        "n_channels",
+        "n_samples",
+        "duration_s",
+        "channel_names",
+        "channel_layout",
+        "unit",
+        "reference",
+        "compat"
+      ]
+    },
+    "VideoManifest": {
+      "type": "object",
+      "properties": {
+        "manifest_id": {
+          "type": "string"
+        },
+        "modality": {
+          "const": "video"
+        },
+        "attachment_sha256": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/Inferred",
+          "description": "value: face | stimulus | other; evidence source records the user's confirmed role"
+        },
+        "duration_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "fps": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "audio": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "face_valid_ratio": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sync": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "clock": {
+              "type": "string",
+              "enum": [
+                "absolute",
+                "eeg_original",
+                "trial_relative",
+                "none"
+              ]
+            },
+            "start_offset_s": {
+              "type": "number"
+            },
+            "paired_manifest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "upload_group_id": {
+          "type": "string",
+          "description": "One upload selection/version directory; related files retain their original names."
+        },
+        "source_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Actual header/data/marker paths comprising the record."
+        }
+      },
+      "required": [
+        "manifest_id",
+        "modality",
+        "attachment_sha256",
+        "role"
+      ]
+    },
+    "DocumentManifest": {
+      "type": "object",
+      "properties": {
+        "manifest_id": {
+          "type": "string"
+        },
+        "modality": {
+          "const": "document"
+        },
+        "attachment_sha256": {
+          "type": "string"
+        },
+        "original_name": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_format": {
+          "type": "string",
+          "enum": [
+            "pdf",
+            "md",
+            "markdown"
+          ]
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "document_index": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "ready",
+                "partial",
+                "ocr_required",
+                "empty"
+              ]
+            },
+            "n_chunks": {
+              "type": "integer"
+            },
+            "page_count": {
+              "type": "integer"
+            },
+            "pages_needing_ocr": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "n_chunks",
+            "page_count"
+          ]
+        },
+        "upload_group_id": {
+          "type": "string",
+          "description": "One upload selection/version directory; related files retain their original names."
+        },
+        "source_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Actual header/data/marker paths comprising the record."
+        }
+      },
+      "required": [
+        "manifest_id",
+        "modality",
+        "attachment_sha256",
+        "source_format",
+        "source_path"
+      ]
+    },
+    "ImageManifest": {
+      "type": "object",
+      "properties": {
+        "manifest_id": {
+          "type": "string"
+        },
+        "modality": {
+          "const": "image"
+        },
+        "attachment_sha256": {
+          "type": "string"
+        },
+        "original_name": {
+          "type": "string"
+        },
+        "source_path": {
+          "type": "string"
+        },
+        "source_format": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "media_type": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/webp"
+          ]
+        },
+        "vision_path": {
+          "type": "string",
+          "description": "Validated static raster passed to the multimodal provider; the original upload is retained."
+        },
+        "frame_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "upload_group_id": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compat": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "manifest_id",
+        "modality",
+        "attachment_sha256",
+        "source_path",
+        "source_format",
+        "width",
+        "height",
+        "media_type",
+        "vision_path"
+      ]
+    }
+  }
+}

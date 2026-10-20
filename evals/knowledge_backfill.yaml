@@ -1,0 +1,52 @@
+# 已核读内容的检索验收。主文档和实际原文分别评估，不代表科学结论自动审查或模型性能。
+- q: MAHNOB 的15秒neutral基线与前后30秒上下文有什么区别
+  docs: [dataset_mahnob]
+  evidence: [{doc_id: doc_mahnob_official_manual, page: 12, contains: ['15 seconds neutral clip']}]
+- q: MAHNOB Status事件0到16和tagging三个脉冲怎么区分
+  docs: [dataset_mahnob]
+  evidence: [{doc_id: doc_mahnob_official_manual, page: 13, contains: ['three pulses']}]
+- q: DEAP 官方预处理版的4到45Hz带通和8064样本
+  docs: [dataset_deap]
+  evidence: [{doc_id: doc_deap_official_readme, contains: ['4.0-45.0Hz']}]
+- q: AMIGOS 官方预处理版joined_data17列与labels_ext_anotation列顺序
+  docs: [dataset_amigos]
+  evidence: [{doc_id: doc_amigos_official_readme, contains: ['segments (20 second clips) x channels']}]
+- q: IFCN beta频带2019勘误之后是13还是14Hz
+  docs: [eeg_basics_rhythms]
+  evidence: [{doc_id: paper_kane2019_corrigendum, contains: ['>13–30 Hz']}]
+- q: mu节律的7到11Hz和枕部alpha怎么区分
+  docs: [eeg_basics_rhythms]
+- q: Welch nfft零填充与实际频率分辨能力和ENBW
+  docs: [methods_spectral]
+- q: PSD density和spectrum的单位与频带功率积分
+  docs: [methods_spectral]
+- q: Hjorth mobility乘采样率为什么不是主峰Hz
+  docs: [methods_spectral]
+- q: ASR cutoff20到30的研究条件和脑活动保留限制
+  docs: [artifacts_catalog, methods_primary_decisions]
+  evidence: [{doc_id: paper_chang2020, page: 19, contains: ['20 and 30']}]
+- q: ICA在1到2Hz高通拟合后如何把权重迁移到低截止数据
+  docs: [artifacts_catalog, methods_primary_decisions]
+  evidence: [{doc_id: paper_winkler2015_highpass, page: 5, contains: ['the learned weights can be applied to the unfiltered data']}]
+- q: wPLI2去偏后是否完全无偏且能证明局部脑区连接
+  docs: [methods_connectivity_selection_and_interpretation]
+  evidence: [{doc_id: paper_vinck2011_wpli, page: 11, contains: ['weighting bias']}]
+- q: FOOOF API应该输入线性PSD还是log10功率
+  docs: [methods_periodic_aperiodic_spectral_analysis]
+- q: FOOOF MAE在原论文与fooof1.1.1是mean还是median
+  docs: [methods_periodic_aperiodic_spectral_analysis]
+- q: LaBraM和NeuroLM微伏除100的幅值输入规范
+  docs: [models_cards, models_foundation_selection_inputs]
+- q: BIOT逐通道95分位归一化与16和18导联的含义
+  docs: [models_cards, models_foundation_selection_inputs]
+- q: BENDR预训练60秒与P300下游窗长是否相同
+  docs: [models_cards, models_foundation_selection_inputs]
+- q: LibEER不同session当subject能证明未见过新用户吗
+  docs: [methods_eval_uncertainty]
+  evidence: [{doc_id: paper_libeer_benchmark, page: 5, contains: ['distinct subjects']}]
+- q: 交叉验证折之间标准误能当可靠置信区间吗
+  docs: [methods_eval_uncertainty]
+  evidence: [{doc_id: paper_varoquaux2018_cv, page: 1, contains: ['standard error across folds']}]
+- q: temperature scaling低ECE能保证换设备后校准吗
+  docs: [methods_eval_uncertainty, methods_emotion_eval]
+  evidence: [{doc_id: paper_ovadia2019_uncertainty, page: 7, contains: ['does not guarantee calibration under distributional shift']}]

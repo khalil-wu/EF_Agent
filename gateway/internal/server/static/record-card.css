@@ -1,0 +1,21 @@
+/* Files stay scannable; reading assumptions and initial checks are available on demand. */
+.record-card h4{gap:7px;margin-bottom:7px}
+.record-card h4>.ms{color:var(--md-on-surface-variant);flex:none}
+.record-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.record-format{flex:none;font-size:.625rem}
+.record-facts{display:flex;flex-wrap:wrap;gap:3px 0;color:var(--md-on-surface-variant);font-size:.75rem;line-height:1.6}
+.record-facts>span+span::before{content:"·";margin:0 7px;color:var(--md-outline)}
+.record-scope{margin-top:3px;color:var(--md-on-surface-variant);font-size:.75rem;line-height:1.6}
+.record-notice{margin:8px 0 0;color:var(--warn);font-size:.75rem;line-height:1.65}
+.record-actions{display:flex;gap:8px;margin:10px 0 4px}
+.record-details,.record-quality{margin-top:3px}
+.record-card>.record-details>summary,.record-card>.record-quality>summary{padding:5px 0;font-size:.75rem}
+.record-detail-body{margin:5px 0 8px;padding:10px 0 2px;border-top:1px solid var(--md-outline-variant)}
+.record-detail-body>.kv{margin-bottom:9px}
+.record-detail-note{margin:0 0 9px;font-size:.75rem;line-height:1.65;color:var(--md-on-surface-variant)}
+.record-reading-notes{margin:7px 0 10px;padding-left:18px;font-size:.75rem;line-height:1.7;color:var(--md-on-surface-variant)}
+.record-reading-notes>li+li{margin-top:5px}
+.record-methods{display:grid;gap:10px;margin:7px 0;font-size:.75rem;line-height:1.65}
+.record-methods strong{font-weight:500;margin-right:8px;color:var(--md-on-surface)}
+.record-methods p{margin:3px 0 0;color:var(--md-on-surface-variant)}
+.record-raw{margin-top:7px}

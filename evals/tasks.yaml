@@ -1,0 +1,287 @@
+# EFAgent 评测任务集（PRD §19.1，L0–L4）
+#
+# 每条任务：fixture（合成数据）、utterances（≥3 种说法）、期望。评分见 evals/run.py。
+#   expect.feasibility     人工标注的可行性：feasible | partial | infeasible；null 不评分（无情绪真值）
+#   expect.required_tools  必需出现的工具（覆盖率）
+#   expect.forbidden_tools 不应出现的工具
+#   expect.must_mention    回答必须包含的关键词（任一组内至少一个命中）
+#   expect.must_not_claim  回答不得出现的断言
+#   expect.numeric         数值一致性检查（由 run.py 用 scipy 直接重算）
+
+- id: L0-01
+  level: L0
+  fixture: homebrew_8ch
+  utterances:
+    - 帮我识别这段 EEG 的情绪
+    - 我用自己的头带录了一分钟，看看我当时是什么情绪
+    - 这段信号能不能跑情绪分类
+  expect:
+    feasibility: null
+    required_tools: [read_skill, segment_signal, extract_features, read_artifact, save_emotion_assessment]
+    forbidden_tools: [run_model]
+    must_mention: [["art_", "artifact"]]
+    assessment_workflow:
+      - {statuses: [unassessed, hypothesis], time_range_s: [0, 60]}
+
+- id: L0-02
+  level: L0
+  fixture: forehead_1ch
+  utterances:
+    - 这个单通道额头脑电能做情绪识别吗
+    - 用这段 Fp1 判断一下情绪
+    - 只有一个通道，能分析出情绪吗
+  expect:
+    feasibility: null
+    required_tools: [read_skill, segment_signal, extract_features, read_artifact, save_emotion_assessment]
+    forbidden_tools: [run_model]
+    must_mention: [["Fp1", "单通道", "一个通道", "1 个通道"], ["art_", "artifact"]]
+    must_not_claim: ["额叶不对称指数为"]
+    assessment_workflow:
+      - {statuses: [unassessed, hypothesis], time_range_s: [0, 30]}
+
+- id: L0-03
+  level: L0
+  fixture: volts_32ch
+  utterances:
+    - 读一下这个文件，告诉我能做什么
+    - 这是什么数据
+    - 帮我看看这个文件的基本信息
+  expect:
+    feasibility: feasible
+    must_mention: [["V", "伏", "单位"], ["32"]]
+    must_not_claim: []
+
+- id: L0-04
+  level: L0
+  fixture: homebrew_8ch
+  utterances:
+    - 算一下左右额叶 alpha 不对称
+    - F3 和 F4 的 alpha 差多少
+    - 给我额叶不对称指数
+  expect:
+    feasibility: infeasible
+    must_mention: [["通道名", "通道", "F3", "F4"], ["不可行", "不能", "无法", "未知"]]
+    must_not_claim: ["不对称指数为", "asymmetry = "]
+
+- id: L1-01
+  level: L1
+  fixture: openbci_8ch
+  utterances:
+    - 画出前 10 秒的波形
+    - 把 0 到 10 秒的原始信号画出来
+    - 看看开头十秒长什么样
+  expect:
+    feasibility: feasible
+    required_tools: [plot]
+    forbidden_tools: [run_model, extract_features]
+    must_mention: [["art_", "artifact"]]
+
+- id: L1-02
+  level: L1
+  fixture: openbci_8ch
+  utterances:
+    - 把这段信号做 1 到 45 Hz 带通
+    - 做一个 1–45 Hz 的带通滤波
+    - 滤波，保留 1 到 45 赫兹
+  expect:
+    feasibility: feasible
+    required_tools: [preprocess]
+    forbidden_tools: [run_model]
+    must_mention: [["1", "45"], ["art_", "artifact"]]
+
+- id: L1-03
+  level: L1
+  fixture: openbci_8ch
+  utterances:
+    - 按 4 秒窗口切片
+    - 把信号切成 4 秒一段
+    - 分成每段 4 秒的窗口
+  expect:
+    feasibility: feasible
+    required_tools: [segment_signal]
+    must_mention: [["窗", "window"]]
+
+- id: L1-04
+  level: L1
+  fixture: openbci_8ch
+  utterances:
+    - 什么是差分熵？CAMER 用的是哪种实现
+    - 差分熵和 PSD 有什么区别
+    - LibEER 的 DE 频带是怎么切的
+  expect:
+    feasibility: feasible
+    required_tools: [search_knowledge]
+    forbidden_tools: [run_model, extract_features]
+    must_mention: [["k_"], ["log", "方差", "高斯"], ["0.5", "filtfilt", "LibEER", "libeer"]]
+
+- id: L3-02
+  level: L3
+  fixture: openbci_8ch
+  utterances:
+    - Emotiv EPOC 采的数据能不能喂给 CAMER？依据是什么
+    - 用 Emotiv 头带录的 EEG 可以用 CAMER 做情绪识别吗
+    - CAMER 和 AMIGOS、Emotiv 之间是什么关系
+  expect:
+    feasibility: feasible
+    required_tools: [knowledge_graph]
+    forbidden_tools: [run_model]
+    must_mention: [["AMIGOS"], ["14"], ["k_"]]
+
+- id: L2-05
+  level: L2
+  fixture: openbci_8ch
+  utterances:
+    - 算每个通道的 alpha 峰值频率并画柱状图
+    - 每个通道 alpha 峰在几赫兹，画出来
+    - 给我一张各通道 alpha 峰值频率的图
+  expect:
+    feasibility: feasible
+    required_tools: [run_python]
+    forbidden_tools: [run_model]
+    must_mention: [["art_", "artifact"], ["Hz", "赫兹"], ["O1", "O2"]]
+
+- id: L2-06
+  level: L2
+  fixture: openbci_8ch
+  turns:
+    - 这段 EEG 的主要节律是什么？画一下功率谱
+    - 把刚才的结果整理成一份报告
+  expect:
+    feasibility: feasible
+    required_tools: [run_python]
+    must_mention: [["art_", "artifact"], ["报告", "report"]]
+    must_not_claim: ["仅供参考", "不构成临床诊断"]
+
+- id: L2-01
+  level: L2
+  fixture: openbci_8ch
+  utterances:
+    - 这段 EEG 的主要节律是什么？画一下功率谱
+    - 看看功率谱，主要频带是哪个
+    - 算各频带功率并画 PSD
+  expect:
+    feasibility: feasible
+    required_tools: [segment_signal, extract_features, plot]
+    forbidden_tools: [run_model]
+    must_mention: [["alpha", "α"], ["art_", "artifact"]]
+    numeric:
+      kind: relative_bandpower
+      dominant: alpha
+
+- id: L2-02
+  level: L2
+  fixture: openbci_8ch
+  utterances:
+    - 看看 20 到 40 秒的 alpha 功率和 0 到 20 秒比有没有变化
+    - alpha 功率在 20–40 秒是不是比前 20 秒高
+    - 比较一下前 20 秒和 20 到 40 秒的 alpha
+  expect:
+    feasibility: feasible
+    required_tools: [segment_signal, extract_features]
+    must_mention: [["20", "40"], ["高", "上升", "增", "大"]]
+    must_not_claim: ["显著"]
+
+- id: L2-03
+  level: L2
+  fixture: openbci_8ch
+  utterances:
+    - 按 1 秒窗口提取五频带差分熵并导出 CSV
+    - 算 1 秒窗的 DE，给我 csv
+    - 提取差分熵特征导出成表格
+  expect:
+    feasibility: feasible
+    required_tools: [segment_signal, extract_features, export]
+    must_mention: [["libeer", "LibEER", "filtfilt", "五频带", "5 频带"], ["csv", "CSV", "下载"]]
+
+- id: L2-04
+  level: L2
+  fixture: noisy_8ch
+  utterances:
+    - 这段信号有没有明显伪迹？哪些通道有问题
+    - 信号质量怎么样
+    - 检查一下坏通道和工频干扰
+  expect:
+    feasibility: feasible
+    required_tools: [inspect_record]
+    must_mention: [["P8", "平坦", "flat"], ["50", "工频"]]
+    numeric:
+      kind: signal_quality
+
+- id: L3-01
+  level: L3
+  fixture: openbci_8ch
+  utterances:
+    - 我在 20 到 40 秒闭眼了，能从数据里看出来吗？解释原因
+    - 数据里能不能看出我什么时候闭眼
+    - 找出闭眼的时间段并说明依据
+  expect:
+    feasibility: feasible
+    required_tools: [segment_signal, extract_features]
+    must_mention: [["20", "40"], ["alpha", "α"], ["O1", "O2", "枕"]]
+    must_not_claim: ["显著"]
+
+- id: L4-01
+  level: L4
+  fixture: openbci_8ch
+  turns:
+    - 算一下各频带功率
+    - 换成 CAMER 的五频带定义再算一遍
+  expect:
+    feasibility: feasible
+    required_tools: [extract_features]
+    must_mention: [["14", "camer", "CAMER"]]
+
+- id: L4-02
+  level: L4
+  fixture: openbci_8ch
+  turns:
+    - 画一下功率谱
+    - 第 12 秒的 alpha 功率具体是多少
+  expect:
+    feasibility: feasible
+    required_tools: [read_artifact]
+    must_mention: [["12"], ["µV", "uV", "功率"]]
+
+# 情绪任务验证保存、标签空间与真实时间覆盖；合成信号不提供真实情绪真值。
+- id: L2-07
+  level: L2
+  fixture: openbci_8ch
+  utterances:
+    - 不用专用模型，判断 10 到 50 秒的情绪并画这 40 秒的图
+    - 用工具特征推断 10–50 秒的效价和唤醒度，给完整范围的图
+    - 分析第 10 秒到第 50 秒的情绪，不要训练模型或只看开头
+  expect:
+    feasibility: null
+    required_tools: [read_skill, segment_signal, extract_features, read_artifact, save_emotion_assessment, plot]
+    forbidden_tools: [run_model]
+    must_mention: [["10"], ["50"], ["art_", "artifact"]]
+    assessment_workflow:
+      - {statuses: [unassessed, hypothesis], time_range_s: [10, 50]}
+
+- id: L4-03
+  level: L4
+  fixture: openbci_8ch
+  turns:
+    - 基于工具特征识别整段情绪
+    - 接下来只分析 20 到 40 秒，候选标签用 positive、neutral、negative，重新保存判断
+  expect:
+    feasibility: null
+    required_tools: [read_skill, segment_signal, extract_features, read_artifact, save_emotion_assessment]
+    forbidden_tools: [run_model]
+    must_mention: [["20"], ["40"], ["positive", "neutral", "negative"], ["art_", "artifact"]]
+    assessment_workflow:
+      - {statuses: [unassessed, hypothesis], time_range_s: [0, 60]}
+      - {statuses: [unassessed, hypothesis], labels: [positive, neutral, negative], time_range_s: [20, 40]}
+- id: L2-08
+  level: L2
+  fixture: openbci_8ch
+  utterances:
+    - 找出最明显的节律增强时段，导出仅含 start_s 和 end_s 两列的 CSV 区间表
+    - 定位节律增强的真实开始与结束，保存两列 start_s、end_s 的 CSV
+    - 哪一段节律最明显？把该段起止秒数导出为 start_s、end_s 两列 CSV
+  expect:
+    feasibility: feasible
+    required_tools: [run_python]
+    numeric:
+      kind: event_intervals
+      tolerance_s: 1
