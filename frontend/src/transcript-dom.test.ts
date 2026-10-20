@@ -6,7 +6,7 @@ import {flushSync} from 'react-dom';
 import {act} from 'react';
 import {mount,type Options} from './transcript';
 
-test('native reasoning streams literally, fades five seconds after its last delta and leaves the answer intact',async t=>{
+test('native reasoning expires only while thinking and hands off immediately to public text',async t=>{
   t.mock.timers.enable({apis:['setTimeout','Date'],now:Date.now()});
   const dom=new JSDOM('<div id="chat"></div>',{url:'http://localhost/'});
   Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,IS_REACT_ACT_ENVIRONMENT:true});
@@ -15,7 +15,7 @@ test('native reasoning streams literally, fades five seconds after its last delt
   let store:ReturnType<typeof mount>;
   await act(async()=>{store=mount(document.querySelector('#chat')!,options);store.addTurn('reasoning');store.apply({type:'message_started',message_id:'native'})});
   t.after(async()=>{await act(async()=>store.reset());dom.window.close();(globalThis as any).IS_REACT_ACT_ENVIRONMENT=false});
-  const push=(text:string,ts=new Date().toISOString())=>store.apply({type:'reasoning_delta',message_id:'native',text,ts});
+  const push=(text:string,ts=new Date().toISOString(),messageId='native')=>store.apply({type:'reasoning_delta',message_id:messageId,text,ts});
   await act(async()=>push('先检查 <script>标签</script> 与通道。'));
   assert.equal(document.querySelector('.reasoning-text')!.textContent,'先检查 <script>标签</script> 与通道。');
   assert.equal(document.querySelector('.reasoning-text script'),null);
@@ -24,14 +24,30 @@ test('native reasoning streams literally, fades five seconds after its last delt
   await act(async()=>push('再比较清洗前后。'));
   await act(async()=>t.mock.timers.tick(4000));
   assert.match(document.querySelector('.reasoning-text')!.textContent!,/再比较清洗前后。$/);
-  await act(async()=>{store.message('final','结果已保存。','answer',true);store.finish()});
   await act(async()=>t.mock.timers.tick(800));
   assert.equal(document.querySelector('.reasoning-preview')!.classList.contains('is-fading'),true);
   await act(async()=>t.mock.timers.tick(200));
   assert.equal(document.querySelector('.reasoning-preview'),null);
-  assert.match(document.querySelector('[data-message-id="final"]')!.textContent!,/结果已保存/);
   await act(async()=>push('新片段。'));
   assert.equal(document.querySelector('.reasoning-text')!.textContent,'新片段。','a fresh segment appears after expiry');
+  await act(async()=>store.apply({type:'message_delta',message_id:'native',text:'我先检查通道。'}));
+  assert.equal(document.querySelector('.reasoning-preview'),null,'the first public token removes reasoning without advancing the clock');
+  await act(async()=>push('晚到的思考。'));
+  assert.equal(document.querySelector('.reasoning-preview'),null,'the same message cannot reopen reasoning after public text');
+  await act(async()=>{
+    store.apply({type:'message_completed',message_id:'native',phase:'commentary'});
+    store.apply({type:'message_started',message_id:'final'});
+    push('核对最后的结果。',new Date().toISOString(),'final');
+  });
+  assert.match(document.querySelector('.reasoning-text')!.textContent!,/核对最后的结果/);
+  await act(async()=>store.apply({type:'message_delta',message_id:'final',text:'结果已保存。'}));
+  assert.equal(document.querySelector('.reasoning-preview'),null,'the first answer token also removes reasoning');
+  await act(async()=>{store.apply({type:'message_completed',message_id:'final',phase:'final_answer'});store.finish()});
+  assert.match(document.querySelector('[data-message-id="final"]')!.textContent!,/结果已保存/);
+  await act(async()=>push('已结束的推理。',new Date().toISOString(),'final'));
+  assert.equal(document.querySelector('.reasoning-preview'),null);
+  await act(async()=>{store.addTurn('stop');store.apply({type:'message_started',message_id:'stop-native'});push('下一轮思考。',new Date().toISOString(),'stop-native')});
+  assert.match(document.querySelector('.reasoning-text')!.textContent!,/下一轮思考/);
   await act(async()=>store.apply({type:'stopped'}));
   assert.equal(document.querySelector('.reasoning-preview'),null,'stopping clears the transient progress');
   await act(async()=>{store.reset();store.addTurn('replay');store.apply({type:'message_started',message_id:'native'});push('旧内容',new Date(Date.now()-10000).toISOString())});

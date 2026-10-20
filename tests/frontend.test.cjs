@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {readFileSync}=require('node:fs');
+const {readFileSync,existsSync}=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const source=readFileSync(path.join(__dirname,'../frontend/bridge/app.js'),'utf8');
@@ -286,9 +286,12 @@ const attachmentManifest=(id,name,modality='eeg')=>({manifest_id:id,original_nam
 const attachmentTick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('published shell is produced from the tested bridge sources',()=>{
- for(const name of ['app.js','app.css','record-card.css','index.html','execution-details.js','attachment-preview.js','file-mentions.js'])assert.equal(
-  readFileSync(path.join(__dirname,'../gateway/internal/server/static',name),'utf8'),
-  readFileSync(path.join(__dirname,'../frontend/bridge',name),'utf8'));
+ for(const name of ['app.js','app.css','record-card.css','index.html','execution-details.js','attachment-preview.js','file-mentions.js']){
+  let expected=readFileSync(path.join(__dirname,'../frontend/bridge',name),'utf8');
+  const localFonts=path.join(__dirname,'../frontend/bridge/fonts.local.css');
+  if(name==='app.css'&&existsSync(localFonts))expected+='\n'+readFileSync(localFonts,'utf8');
+  assert.equal(readFileSync(path.join(__dirname,'../gateway/internal/server/static',name),'utf8'),expected);
+ }
 });
 
 test('selected workspace references reach the request and user message without uploading their files',async()=>{

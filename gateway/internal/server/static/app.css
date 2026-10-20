@@ -18,8 +18,8 @@
   --ok:#1a7f37;--ok-c:#e2f3e7;--warn:#8a6a33;--warn-c:#f6ecd2;--info:#2f6fdd;--info-c:#e8f0fe;
   --error-surface:#fdf5f3;--error-border:#efdcd6;--error-text:#9a3f35;
   --r-xs:5px;--r-s:8px;--r-m:10px;--r-l:16px;--r-xl:22px;--r-full:999px;
-  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei UI",system-ui,sans-serif;
-  --mono:"Cascadia Code",Consolas,ui-monospace,SFMono-Regular,Menlo,"PingFang SC",monospace;
+  --font:"Anthropic Sans","EEG PingFang SC","PingFang SC",-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei UI",system-ui,sans-serif;
+  --mono:"Anthropic Mono","Cascadia Code","EEG PingFang SC","PingFang SC",Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;
   --ease:cubic-bezier(.2,0,0,1);--ease-decel:cubic-bezier(.05,.7,.1,1);--ease-std:cubic-bezier(.2,.8,.2,1);
   --d-xs:100ms;--d-s:160ms;--d-m:200ms;
   --sheet-w:380px;--sidebar-w:240px;--content-w:760px;--chat-gutter:28px;

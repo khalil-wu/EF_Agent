@@ -5,6 +5,9 @@
 *.local.ps1
 *.local.yaml
 *.local.yml
+*.local.css
+/frontend/bridge/fonts/
+/gateway/internal/server/static/fonts/
 *.pem
 *.key
 

@@ -7,7 +7,7 @@ const turns=(store:Store)=>store.getSnapshot().rows.filter((row):row is Turn=>ro
 const entry=(store:Store,id:string)=>turns(store).flatMap(row=>row.entries).find(item=>item.id===id)!;
 const replay=(store:Store,events:Event[])=>events.forEach(store.apply);
 
-test('provider reasoning stays transient, follows its message across steering and ignores expired replay',()=>{
+test('provider reasoning stays transient, ends with its turn and ignores expired replay',()=>{
   const store=createTranscriptStore(),ts=new Date().toISOString();
   store.addTurn('first');store.apply({type:'message_started',message_id:'reason-first'});
   const before=store.getSnapshot().contentVersion;
@@ -19,7 +19,7 @@ test('provider reasoning stays transient, follows its message across steering an
   store.addUser({text:'另一个问题'});store.addTurn('second');
   store.apply({type:'message_started',message_id:'reason-second'});
   store.apply({type:'reasoning_delta',message_id:'reason-first',text:'旧轮补充。',ts});
-  assert.match(turns(store)[0].reasoning!.text,/旧轮补充。$/);
+  assert.equal(turns(store)[0].reasoning,undefined,'an inactive turn cannot resume transient reasoning');
   assert.equal(turns(store)[1].reasoning,undefined);
   store.apply({type:'reasoning_delta',message_id:'reason-second',text:'过期内容',ts:new Date(Date.now()-10000).toISOString()});
   assert.equal(turns(store)[1].reasoning,undefined);
@@ -27,6 +27,51 @@ test('provider reasoning stays transient, follows its message across steering an
   assert.ok(turns(store)[1].reasoning!.text.length<1000,'a long trace has a bounded recent preview');
   store.hydrate({messages:[{role:'assistant',content:'最终结果',message_id:'saved'}],running:false});
   assert.equal(turns(store)[0].reasoning,undefined,'durable history does not restore transient text');
+});
+
+test('the first public token ends reasoning before commentary or final classification and late deltas stay ended',()=>{
+  const store=createTranscriptStore(),ts=new Date().toISOString();
+  store.addTurn('active');store.apply({type:'message_started',message_id:'plan'});
+  store.apply({type:'reasoning_delta',message_id:'plan',text:'先判断怎么分析',ts});
+  assert.ok(turns(store)[0].reasoning);
+  store.apply({type:'message_delta',message_id:'plan',text:'我先检查通道。'});
+  assert.equal(turns(store)[0].reasoning,undefined);
+  assert.equal((entry(store,'plan') as Message).phase,'pending','no need to wait for commentary classification');
+  store.apply({type:'reasoning_delta',message_id:'plan',text:'晚到的推理',ts});
+  assert.equal(turns(store)[0].reasoning,undefined);
+  store.apply({type:'message_phase',message_id:'plan',phase:'commentary'});
+  store.apply({type:'message_completed',message_id:'plan',phase:'commentary'});
+  store.apply({type:'message_started',message_id:'answer'});
+  store.apply({type:'reasoning_delta',message_id:'answer',text:'检查已完成',ts});
+  assert.equal(turns(store)[0].reasoning!.messageId,'answer','a subsequent model step may think again');
+  store.apply({type:'message_delta',message_id:'answer',text:'主峰是 10 Hz。'});
+  assert.equal(turns(store)[0].reasoning,undefined);
+  store.apply({type:'message_completed',message_id:'answer',phase:'final_answer'});
+  store.apply({type:'session_saved'});
+  store.apply({type:'reasoning_delta',message_id:'answer',text:'不应出现',ts});
+  assert.equal(turns(store)[0].reasoning,undefined);
+  assert.equal((entry(store,'answer') as Message).text,'主峰是 10 Hz。');
+});
+
+test('tool handoff, waiting, completion, stop and failure clear reasoning synchronously',()=>{
+  const cases:Event[][]=[
+    [{type:'message_phase',message_id:'native',phase:'commentary'},{type:'tool_call_started',tool_call_id:'tool',tool_name:'inspect_record',message_id:'native'}],
+    [{type:'message_completed',message_id:'native',phase:'final_answer'}],
+    [{type:'user_input_requested'}],
+    [{type:'stopped'}],
+    [{type:'error',text:'模型连接中断'}],
+    [{type:'session_saved'}],
+  ];
+  for(const events of cases){
+    const store=createTranscriptStore(),ts=new Date().toISOString();store.addTurn('active');
+    store.apply({type:'message_started',message_id:'native'});
+    store.apply({type:'reasoning_delta',message_id:'native',text:'思考片段',ts});
+    assert.ok(turns(store)[0].reasoning);
+    replay(store,events);
+    assert.equal(turns(store)[0].reasoning,undefined,events[0].type);
+    store.apply({type:'reasoning_delta',message_id:'native',text:'晚到片段',ts});
+    assert.equal(turns(store)[0].reasoning,undefined,'late '+events[0].type);
+  }
 });
 
 test('a rejected truncated call survives live replay and history hydration without parsing its raw text',()=>{

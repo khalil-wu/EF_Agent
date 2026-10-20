@@ -119,11 +119,11 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
   const [reasoningPhase,setReasoningPhase]=useState<'visible'|'fading'|'hidden'>('hidden'),reasoningText=useRef<HTMLDivElement>(null);
   useEffect(()=>{
     const remaining=row.reasoning?REASONING_PREVIEW_MS-(Date.now()-row.reasoning.updatedAt):0;
-    if(remaining<=0||row.waiting||row.stopped||row.error){setReasoningPhase('hidden');return}
+    if(remaining<=0){setReasoningPhase('hidden');return}
     setReasoningPhase(remaining<=200?'fading':'visible');
     const fade=setTimeout(()=>setReasoningPhase('fading'),Math.max(0,remaining-200)),hide=setTimeout(()=>setReasoningPhase('hidden'),remaining);
     return()=>{clearTimeout(fade);clearTimeout(hide)};
-  },[row.reasoning,row.waiting,row.stopped,row.error]);
+  },[row.reasoning]);
   useLayoutEffect(()=>{if(reasoningText.current)reasoningText.current.scrollTop=reasoningText.current.scrollHeight},[row.reasoning?.text,reasoningPhase]);
   useEffect(()=>{if(!row.running||!latestComment){setCommentPreview(undefined);return}setCommentPreview(latestComment.id);const timer=setTimeout(()=>setCommentPreview(undefined),18000);return()=>clearTimeout(timer)},[row.running,latestComment?.id,latestComment?.text]);
   useEffect(()=>{if(row.running||!row.finishedAt||row.error||row.stopped){setRecentCompletion(false);return}setRecentCompletion(true);const timer=setTimeout(()=>setRecentCompletion(false),5000);return()=>clearTimeout(timer)},[row.running,row.finishedAt,row.error,row.stopped]);
@@ -132,6 +132,7 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
   const deliveries=workspaceDeliveries(row),saved=new Set(deliveries.flatMap(delivery=>delivery.files.map((file:any)=>file.artifact_id).filter(Boolean)));
   const artifacts=resultItems(row.artifacts,options.artifact).filter(item=>!saved.has(item.artifact_id));
   const writing=row.entries.some(entry=>entry.type==='message'&&entry.phase!=='commentary'&&!entry.done&&entry.text);
+  const reasoningVisible=Boolean(row.reasoning)&&reasoningPhase!=='hidden';
   const label=running?running.progress?.at(-1)?.label||`${running.status==='preparing'?'准备':'正在'}${options.toolLabel(running.name)}`:writing?'正在回复':'思考中';
   const toolActivityVisible=running&&row.open!==false;
   const publicProgressVisible=row.open!==false&&commentPreview===latestComment?.id&&Boolean(latestComment);
@@ -146,10 +147,10 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
     <div id={'entries-'+row.id} className={'turn-thread transcript-entries'+(open?' process-open':'')}>
       {groups.map(entry=>entry.type==='tools'?<div className={'process-entry tool-entry'+(row.open!==false&&(entry.tools.some(tool=>tool.status==='running'||tool.status==='preparing')||recentCompletion&&entry.id===lastGroup?.id)?' is-current':'')} key={entry.id} onPointerDown={engage} onFocusCapture={engage}><OperationGroup group={entry} options={options} engage={engage} startedAt={row.startedAt}/></div>:<div key={entry.id} className={entry.phase==='commentary'?'process-entry commentary-entry'+(row.open!==false&&commentPreview===entry.id?' is-current':''):'answer-entry'} onPointerDown={entry.phase!=='answer'?engage:undefined} onFocusCapture={entry.phase!=='answer'?engage:undefined}><StreamingText message={entry} options={options} numbers={numbers} metadataVersion={metadataVersion}/></div>)}
     </div>
-    {row.reasoning&&reasoningPhase!=='hidden'&&<div className={'reasoning-preview'+(reasoningPhase==='fading'?' is-fading':'')} aria-label="模型思考"><span className="reasoning-label">思考</span><div className="reasoning-text" ref={reasoningText}>{row.reasoning.text}</div></div>}
+    {row.reasoning&&reasoningVisible&&<div className={'reasoning-preview'+(reasoningPhase==='fading'?' is-fading':'')} aria-label="模型思考"><span className="reasoning-label">思考</span><div className="reasoning-text" ref={reasoningText}>{row.reasoning.text}</div></div>}
     {(artifacts.length>0||deliveries.length>0)&&<button className="turn-results-link" aria-label={`查看本轮全部结果：${[artifacts.length?resultSummary(artifacts):'',deliveries.length?workspaceSummary(deliveries):''].filter(Boolean).join(' · ')}`} onClick={()=>options.openResults(row.id)}><Icon name="folder_open"/><span><strong>本轮结果</strong><small>{[artifacts.length?resultSummary(artifacts):'',deliveries.length?workspaceSummary(deliveries):''].filter(Boolean).join(' · ')}</small></span><span className="results-open-label">查看全部</span><Icon name="chevron_right"/></button>}
     {numbers.size>0&&answers.length>0&&<div className="turn-sources"><span className="sources-label">来源</span>{[...sourceGroups].map(([key,group])=><button key={key} className="source-chip" data-know={group.id} title={options.sourceTitle(group.source)+' · 引用 '+group.numbers.join('、')}><span className="source-number">{group.numbers.join(',')}</span><span className="source-chip-title">{options.sourceTitle(group.source)}</span></button>)}</div>}
-    {row.running&&!row.waiting&&!toolActivityVisible&&!publicProgressVisible&&!writing&&reasoningPhase==='hidden'&&<div className="active-status" role="status" data-activity={running?'working':row.activity||'thinking'}><span className="working-dot" aria-hidden="true"/><span>{label}</span><Elapsed start={row.startedAt}/></div>}
+    {row.running&&!row.waiting&&!toolActivityVisible&&!publicProgressVisible&&!writing&&!reasoningVisible&&<div className="active-status" role="status" data-activity={running?'working':row.activity||'thinking'}><span className="working-dot" aria-hidden="true"/><span>{label}</span><Elapsed start={row.startedAt}/></div>}
     {row.waiting&&<div className="waiting-status" role="status"><Icon name="chat_bubble"/>等待你的回答</div>}
     {row.error&&<div className="error-box" role="alert"><Icon name="error"/><div className="error-copy"><strong>{connectionError?'连接中断':'请求未完成'}</strong><p>{connectionError?'模型服务连接中断，请重试。':row.error}</p>{connectionError&&<details className="error-details"><summary>查看错误详情</summary><p>{row.error}</p></details>}</div><button className="chip small" onClick={options.retry}>重试</button></div>}
     {row.stopped&&<div className="sysnote">已停止，已生成的内容保留在这里</div>}
