@@ -3,6 +3,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let sessionId=null, streaming=false, mode='readonly', manifests=[], artifacts={};
 let viewVersion=0, streamController=null, creating=null, submitting=false, uploading=false, navigating=false, followBottom=true, stopRequested=false;
 let workspaceCatalog=[];
+const expandedWorkspaces=JSON.parse(localStorage.getItem('eeg-workspace-folders')||'{}');
 let sessionsCache=[],trashView=false,sessionListVersion=0,menuRecord=null,dialogAction=null;
 let currentTitle='',currentParent='',activeSkillName='';
 let skillCatalog=[],commandIndex=0,commandMatches=[];
@@ -137,6 +138,7 @@ async function newSession(preserveComposer=false,workspaceId=currentWorkspaceID)
   if(selectedWorkspace)await api(`/sessions/${sessionId}/workspace`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:selectedWorkspace})});
   currentWorkspaceID=selectedWorkspace;
   fileMentions.restore(sessionId,preserveComposer);
+  if(selectedWorkspace){expandedWorkspaces[selectedWorkspace]=true;localStorage.setItem('eeg-workspace-folders',JSON.stringify(expandedWorkspaces))}
   if(!preserveComposer)$('#input').value='';renderPendingFiles();$('#sessionLabel').textContent='新分析';restoreStatus();refreshSessions().catch(reportError);$('#input').focus();
 }
 async function ensureSession(){if(!sessionId){if(!creating)creating=newSession(true).finally(()=>creating=null);await creating}}
@@ -165,14 +167,16 @@ function renderSessionList(){
   for(const workspace of workspaceCatalog){
     const children=list.filter(record=>record.workspace_id===workspace.workspace_id);
     if(query&&!children.length&&!workspace.name.toLowerCase().includes(query))continue;
+    const open=expandedWorkspaces[workspace.workspace_id]??true;
     const group=document.createElement('section');group.className='workspace-group';group.dataset.workspaceId=workspace.workspace_id;
-    const header=document.createElement('div');header.className='workspace-folder';header.tabIndex=0;header.setAttribute('aria-label','工作区：'+workspace.name);header.setAttribute('aria-haspopup','menu');
+    const header=document.createElement('div');header.className='workspace-folder';header.setAttribute('aria-label','工作区：'+workspace.name);
     header.oncontextmenu=event=>{event.preventDefault();openWorkspaceMenu(workspace,header,{x:event.clientX,y:event.clientY})};
     header.onkeydown=event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();openWorkspaceMenu(workspace,header)}};
-    const label=document.createElement('div');label.className='workspace-folder-label';label.title=workspace.root;label.innerHTML=`<span class="ms">${IconSystem.svg('folder')}</span><span>${esc(workspace.name)}</span>`;
+    const label=document.createElement('button');label.className='workspace-folder-label';label.title=workspace.root;label.setAttribute('aria-expanded',String(open));label.setAttribute('aria-controls','workspace-chats-'+workspace.workspace_id);label.innerHTML=`<span class="ms">${IconSystem.svg(open?'folder_open':'folder')}</span><span>${esc(workspace.name)}</span>`;
+    label.onclick=()=>{expandedWorkspaces[workspace.workspace_id]=!open;localStorage.setItem('eeg-workspace-folders',JSON.stringify(expandedWorkspaces));renderSessionList()};
     const create=document.createElement('button');create.className='icon-btn workspace-new';create.title='在'+workspace.name+'中新建对话';create.setAttribute('aria-label',create.title);create.innerHTML='<span class="ms">add</span>';create.onclick=()=>newSession(false,workspace.workspace_id).catch(reportError);
     header.append(label,create);group.appendChild(header);
-    if(children.length){const chats=document.createElement('div');chats.className='workspace-chats';children.forEach(record=>append(record,chats));group.appendChild(chats)}
+    const chats=document.createElement('div');chats.className='workspace-chats';chats.id='workspace-chats-'+workspace.workspace_id;chats.hidden=!open;children.forEach(record=>append(record,chats));group.appendChild(chats);
     box.appendChild(group);
   }
   const independent=list.filter(record=>!record.workspace_id||!workspaceCatalog.some(workspace=>workspace.workspace_id===record.workspace_id));
@@ -193,6 +197,7 @@ async function removeWorkspace(record){
   await api(`/workspaces/${record.workspace_id}`,{method:'DELETE'});
   if(currentWorkspaceID===record.workspace_id){currentWorkspaceID='';resetAttachmentView()}
   fileMentions.removeWorkspace(record.workspace_id);
+  delete expandedWorkspaces[record.workspace_id];localStorage.setItem('eeg-workspace-folders',JSON.stringify(expandedWorkspaces));
   await refreshSessions();fileMentions.update();snack('已移除 '+record.name+'，已有会话保留');
 }
 function openSessionMenu(record,anchor){

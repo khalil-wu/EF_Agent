@@ -803,7 +803,7 @@ body.sidebar-collapsed #drawer{visibility:hidden}
 /* Workspace folders own their chats, following the desktop project hierarchy. */
 .workspace-group{margin-bottom:12px}
 .workspace-folder{display:flex;align-items:center;min-height:32px;gap:3px}
-.workspace-folder-label{display:flex;align-items:center;min-width:0;gap:8px;flex:1;color:var(--md-on-surface);padding:6px 10px;font:400 var(--ui-size)/1.4 var(--font)}
+.workspace-folder-label{display:flex;align-items:center;min-width:0;gap:8px;flex:1;border:0;background:none;color:var(--md-on-surface);padding:6px 10px;text-align:left;font:400 var(--ui-size)/1.4 var(--font)}
 .workspace-folder-label>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .workspace-folder-label>.ms{width:15px;height:15px;color:var(--md-on-surface-variant)}
 .workspace-new{width:25px;height:25px;margin-right:5px;opacity:.55}

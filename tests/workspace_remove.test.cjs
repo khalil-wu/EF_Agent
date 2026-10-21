@@ -15,7 +15,7 @@ function fixture(failure){
   const runtime={document,$:selector=>document.querySelector(selector),innerWidth:1280,innerHeight:900,
     IconSystem:{svg:()=>''},esc:String,localStorage:{setItem:(key,value)=>storage.set(key,value)},
     sessionId:'ses_current',currentWorkspaceID:record.workspace_id,streaming:false,uploading:false,submitting:false,navigating:false,
-    workspaceCatalog:[record],sessionsCache:[{session_id:'ses_current',workspace_id:record.workspace_id,title:'保留的分析'}],trashView:false,
+    workspaceCatalog:[record],sessionsCache:[{session_id:'ses_current',workspace_id:record.workspace_id,title:'保留的分析'}],expandedWorkspaces:{},trashView:false,
     fileMentions:{removeWorkspace:id=>cleared.push(id),update(){}},resetAttachmentView(){},snack:text=>notices.push(text),
     closeDrawer(){},resumeSession(){},openSessionMenu(){},newSession:async(...args)=>created.push(args),reportError(){},
     api:async(url,options)=>{calls.push([url,options.method]);if(failure)throw failure;return {detached_sessions:1}},
@@ -28,11 +28,13 @@ function fixture(failure){
 test('workspace right-click menu removes the mount and retains its conversation without a category heading',async()=>{
   const f=fixture();f.runtime.renderSessionList();
   const header=f.document.querySelector('.workspace-folder');
-  assert.equal(header.querySelectorAll('button').length,1);
+  assert.equal(header.querySelectorAll('.icon-btn').length,1);
+  assert.equal(header.querySelector('.workspace-folder-label').getAttribute('aria-expanded'),'true');
   assert.equal(f.document.querySelector('.workspace-folder-toggle'),null);
   assert.match(f.document.querySelector('.workspace-chats').textContent,/保留的分析/);
   header.querySelector('.workspace-new').click();
   assert.deepEqual(f.created,[[false,record.workspace_id]]);
+  assert.equal(header.querySelector('.workspace-folder-label').getAttribute('aria-expanded'),'true');
   const event=new f.document.defaultView.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:120,clientY:95});
   header.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
   assert.equal(f.document.querySelector('#workspaceMenu').dataset.open,'true');
@@ -46,7 +48,26 @@ test('workspace right-click menu removes the mount and retains its conversation 
   assert.match(f.document.querySelector('#sesList').textContent,/保留的分析/);
   assert.doesNotMatch(f.document.querySelector('#sesList').textContent,/独立会话/);
   assert.deepEqual(f.cleared,[record.workspace_id]);
-  assert.equal(f.storage.size,0);
+  assert.equal(f.storage.get('eeg-workspace-folders'),'{}');
+});
+
+test('folder names expand and collapse only their own conversations and retain the selected conversation',()=>{
+  const f=fixture();
+  f.runtime.sessionsCache.push({session_id:'ses_other',title:'其他会话'});
+  f.runtime.renderSessionList();
+  f.document.querySelector('.workspace-folder-label').click();
+  assert.equal(f.document.querySelector('.workspace-folder-label').getAttribute('aria-expanded'),'false');
+  assert.equal(f.document.querySelector('.workspace-chats').hidden,true);
+  assert.equal(f.document.querySelector('[data-session-id="ses_other"]').closest('.workspace-chats'),null);
+  assert.equal(f.runtime.sessionId,'ses_current');
+  assert.equal(JSON.parse(f.storage.get('eeg-workspace-folders'))[record.workspace_id],false);
+  f.runtime.renderSessionList();
+  assert.equal(f.document.querySelector('.workspace-chats').hidden,true);
+  f.document.querySelector('.workspace-folder-label').click();
+  assert.equal(f.document.querySelector('.workspace-folder-label').getAttribute('aria-expanded'),'true');
+  assert.equal(f.document.querySelector('.workspace-chats').hidden,false);
+  assert.equal(f.document.querySelectorAll('.ses').length,2);
+  assert.deepEqual(f.calls,[]);
 });
 
 test('a failed removal keeps the current workspace and draft references',async()=>{
