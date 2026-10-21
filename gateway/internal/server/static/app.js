@@ -3,7 +3,6 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let sessionId=null, streaming=false, mode='readonly', manifests=[], artifacts={};
 let viewVersion=0, streamController=null, creating=null, submitting=false, uploading=false, navigating=false, followBottom=true, stopRequested=false;
 let workspaceCatalog=[];
-const expandedWorkspaces=JSON.parse(localStorage.getItem('eeg-workspace-folders')||'{}');
 let sessionsCache=[],trashView=false,sessionListVersion=0,menuRecord=null,dialogAction=null;
 let currentTitle='',currentParent='',activeSkillName='';
 let skillCatalog=[],commandIndex=0,commandMatches=[];
@@ -74,7 +73,7 @@ function md(src,options={}){
     if(p.length)out+=`<p>${inline(p.join('\n')).replace(/\n/g,'<br>')}</p>`; else i++;}
   return out.replace(/\u0000(\d+)\u0000/g,(m,n)=>blocks[+n]);
 }
-function autosize(){const t=$('#input');t.style.height='auto';t.style.height=t.value?Math.min(240,t.scrollHeight)+'px':'';t.style.overflowY=t.value&&t.scrollHeight>240?'auto':'hidden';const hasReferences=fileMentions.references().length>0,stopping=streaming&&!t.value.trim()&&!hasReferences;$('#send').disabled=(!stopping&&!t.value.trim()&&!pendingFiles.length&&!hasReferences)||submitting||(navigating&&!uploadTask)||stopRequested;$('#input').disabled=(navigating&&!uploadTask)||stopRequested;$('#sessionActions').disabled=!sessionId||streaming||uploading||navigating;$('#send').classList.toggle('steer',streaming);$('#send').title=stopRequested?'正在停止':stopping?'停止生成':streaming?'发送补充说明':uploadTask?'等待文件读入后发送 (Enter)':'发送 (Enter)';$('#send').setAttribute('aria-label',$('#send').title);$('#send .ms').textContent=stopping||stopRequested?'stop':'arrow_upward';$('#attach').disabled=streaming||submitting||navigating;$('#answerSubmit').disabled=streaming||submitting||navigating;$('#llmSelector').disabled=streaming||submitting||uploading||navigating||changingModel;updateCommands();fileMentions.update()}
+function autosize(){const t=$('#input');t.style.height='auto';t.style.height=t.value?Math.min(240,t.scrollHeight)+'px':'';t.style.overflowY=t.value&&t.scrollHeight>240?'auto':'hidden';const hasReferences=fileMentions.references().length>0,stopping=streaming&&!t.value.trim()&&!hasReferences;$('#send').disabled=(!stopping&&!t.value.trim()&&!pendingFiles.length&&!hasReferences)||submitting||(navigating&&!uploadTask)||stopRequested;$('#input').disabled=(navigating&&!uploadTask)||stopRequested;$('#send').classList.toggle('steer',streaming);$('#send').title=stopRequested?'正在停止':stopping?'停止生成':streaming?'发送补充说明':uploadTask?'等待文件读入后发送 (Enter)':'发送 (Enter)';$('#send').setAttribute('aria-label',$('#send').title);$('#send .ms').textContent=stopping||stopRequested?'stop':'arrow_upward';$('#attach').disabled=streaming||submitting||navigating;$('#answerSubmit').disabled=streaming||submitting||navigating;$('#llmSelector').disabled=streaming||submitting||uploading||navigating||changingModel;updateCommands();fileMentions.update()}
 async function api(url,options){const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw new Error(j.worker?.error?.message||j.error?.message||j.error||j.detail||`请求失败 (${r.status})`);return j}
 function reportError(error){snack(error.message)}
 function resetSourceView(){const detail=$('#sourceDetail');detail.hidden=true;detail.replaceChildren();$('#knowledge').hidden=false;if($('#sourcePopover').matches(':popover-open'))$('#sourcePopover').hidePopover()}
@@ -127,7 +126,7 @@ function resizePanel(id,variable,min,max,direction){
 resizePanel('drawerResize','sidebar-w',200,320,1);resizePanel('sheetResize','sheet-w',320,520,-1);
 
 /* ---------- session ---------- */
-function resetView(){renderInputRequest(null);transcript.reset();$('#manifests').innerHTML='';$('#noData').style.display='';$('#artifacts').innerHTML='';$('#noArt').style.display='';$('#knowledge').innerHTML='';$('#facts').innerHTML='';$('#noKnow').style.display='';badge('#bData',0);badge('#bArt',0);badge('#bKnow',0);$('#trace').innerHTML='';$('#noTrace').style.display='';$('#activeSkill').textContent='自动选择方法';manifests=[];artifacts={};knowledge={};facts={};resultScope='latest';selectedArtifact=null;$('#resultSearch').value='';$('#resultList').replaceChildren();$('#resultCatalog').hidden=false;$('#resultDetail').hidden=true;updateAttachments()}
+function resetView(){renderInputRequest(null);transcript.reset();$('#manifests').innerHTML='';$('#noData').style.display='';$('#artifacts').innerHTML='';$('#noArt').style.display='';$('#knowledge').innerHTML='';$('#facts').innerHTML='';$('#noKnow').style.display='';badge('#bData',0);badge('#bArt',0);badge('#bKnow',0);$('#trace').innerHTML='';$('#noTrace').style.display='';$('#activeSkill').textContent='自动选择方法';manifests=[];artifacts={};knowledge={};facts={};resultScope='latest';selectedArtifact=null;$('#resultSearch').value='';$('#resultList').replaceChildren();$('#resultCatalog').hidden=false;$('#resultDetail').hidden=true}
 async function newSession(preserveComposer=false,workspaceId=currentWorkspaceID){
   const selectedWorkspace=workspaceId;
   const staged=preserveComposer?[...pendingFiles]:[];
@@ -138,8 +137,6 @@ async function newSession(preserveComposer=false,workspaceId=currentWorkspaceID)
   if(selectedWorkspace)await api(`/sessions/${sessionId}/workspace`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:selectedWorkspace})});
   currentWorkspaceID=selectedWorkspace;
   fileMentions.restore(sessionId,preserveComposer);
-  if(selectedWorkspace){expandedWorkspaces[selectedWorkspace]=true;localStorage.setItem('eeg-workspace-folders',JSON.stringify(expandedWorkspaces))}
-
   if(!preserveComposer)$('#input').value='';renderPendingFiles();$('#sessionLabel').textContent='新分析';restoreStatus();refreshSessions().catch(reportError);$('#input').focus();
 }
 async function ensureSession(){if(!sessionId){if(!creating)creating=newSession(true).finally(()=>creating=null);await creating}}
@@ -168,37 +165,35 @@ function renderSessionList(){
   for(const workspace of workspaceCatalog){
     const children=list.filter(record=>record.workspace_id===workspace.workspace_id);
     if(query&&!children.length&&!workspace.name.toLowerCase().includes(query))continue;
-    const open=Boolean(query)||(expandedWorkspaces[workspace.workspace_id]??(currentWorkspaceID===workspace.workspace_id||children.some(record=>record.session_id===sessionId)));
     const group=document.createElement('section');group.className='workspace-group';group.dataset.workspaceId=workspace.workspace_id;
-    const header=document.createElement('div');header.className='workspace-folder';
-    const toggle=document.createElement('button');toggle.className='workspace-folder-toggle';toggle.setAttribute('aria-expanded',String(open));toggle.title=workspace.root;toggle.innerHTML=`<span class="ms">${IconSystem.svg(open?'folder_open':'folder')}</span><span>${esc(workspace.name)}</span><span class="ms">${IconSystem.svg(open?'expand_more':'chevron_right')}</span>`;
-    toggle.onclick=()=>{expandedWorkspaces[workspace.workspace_id]=!open;localStorage.setItem('eeg-workspace-folders',JSON.stringify(expandedWorkspaces));renderSessionList()};
-    const create=document.createElement('button');create.className='icon-btn workspace-new';create.title='在'+workspace.name+'中新建分析';create.setAttribute('aria-label',create.title);create.innerHTML='<span class="ms">add</span>';create.onclick=()=>newSession(false,workspace.workspace_id).catch(reportError);
-    const more=document.createElement('button');more.className='icon-btn workspace-more';more.title=workspace.name+'的工作区操作';more.setAttribute('aria-label',more.title);more.setAttribute('aria-haspopup','menu');more.innerHTML='<span class="ms">more_horiz</span>';more.onclick=()=>openWorkspaceMenu(workspace,more);
-    header.append(toggle,create,more);group.appendChild(header);
-    if(open){const chats=document.createElement('div');chats.className='workspace-chats';children.forEach(record=>append(record,chats));if(!children.length)chats.innerHTML='<div class="workspace-no-chat">点击 + 新建分析</div>';group.appendChild(chats)}
+    const header=document.createElement('div');header.className='workspace-folder';header.tabIndex=0;header.setAttribute('aria-label','工作区：'+workspace.name);header.setAttribute('aria-haspopup','menu');
+    header.oncontextmenu=event=>{event.preventDefault();openWorkspaceMenu(workspace,header,{x:event.clientX,y:event.clientY})};
+    header.onkeydown=event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();openWorkspaceMenu(workspace,header)}};
+    const label=document.createElement('div');label.className='workspace-folder-label';label.title=workspace.root;label.innerHTML=`<span class="ms">${IconSystem.svg('folder')}</span><span>${esc(workspace.name)}</span>`;
+    const create=document.createElement('button');create.className='icon-btn workspace-new';create.title='在'+workspace.name+'中新建对话';create.setAttribute('aria-label',create.title);create.innerHTML='<span class="ms">add</span>';create.onclick=()=>newSession(false,workspace.workspace_id).catch(reportError);
+    header.append(label,create);group.appendChild(header);
+    if(children.length){const chats=document.createElement('div');chats.className='workspace-chats';children.forEach(record=>append(record,chats));group.appendChild(chats)}
     box.appendChild(group);
   }
   const independent=list.filter(record=>!record.workspace_id||!workspaceCatalog.some(workspace=>workspace.workspace_id===record.workspace_id));
-  if(independent.length){const label=document.createElement('div');label.className='independent-chats-label';label.textContent='独立会话';box.appendChild(label);independent.forEach(record=>append(record,box))}
+  independent.forEach(record=>append(record,box));
   if(!workspaceCatalog.length&&!independent.length)box.innerHTML='<div class="list-empty">挂接一个文件夹，开始新的分析。</div>';
 }
-function openWorkspaceMenu(record,anchor){
+function openWorkspaceMenu(record,anchor,point){
   menuWorkspace=record;const menu=$('#workspaceMenu');
   const busy=sessionsCache.some(session=>session.workspace_id===record.workspace_id&&session.running)||currentWorkspaceID===record.workspace_id&&(streaming||uploading||submitting||navigating);
   $('#workspaceMenuTitle').textContent=record.name;$('#removeWorkspace').disabled=busy;
-  $('#workspaceMenuNote').textContent=busy?'当前正在处理，完成后可移除。':'保留本地文件，会话移至独立会话。';
+  $('#workspaceMenuNote').textContent=busy?'当前正在处理，完成后可移除。':'保留本地文件和已有会话。';
   menu.showPopover();const rect=anchor.getBoundingClientRect();
-  menu.style.left=Math.max(12,Math.min(rect.right-menu.offsetWidth,innerWidth-menu.offsetWidth-12))+'px';
-  menu.style.top=Math.max(12,Math.min(rect.bottom+6,innerHeight-menu.offsetHeight-12))+'px';
+  menu.style.left=Math.max(12,Math.min(point?point.x:rect.left,innerWidth-menu.offsetWidth-12))+'px';
+  menu.style.top=Math.max(12,Math.min(point?point.y:rect.bottom+6,innerHeight-menu.offsetHeight-12))+'px';
   if(!busy)$('#removeWorkspace').focus();
 }
 async function removeWorkspace(record){
   await api(`/workspaces/${record.workspace_id}`,{method:'DELETE'});
   if(currentWorkspaceID===record.workspace_id){currentWorkspaceID='';resetAttachmentView()}
   fileMentions.removeWorkspace(record.workspace_id);
-  delete expandedWorkspaces[record.workspace_id];localStorage.setItem('eeg-workspace-folders',JSON.stringify(expandedWorkspaces));
-  await refreshSessions();fileMentions.update();snack('已移除 '+record.name+'，已有会话保留在独立会话中');
+  await refreshSessions();fileMentions.update();snack('已移除 '+record.name+'，已有会话保留');
 }
 function openSessionMenu(record,anchor){
   menuRecord=record;const menu=$('#sessionMenu'),deleted=Boolean(record.deleted_at);
@@ -527,7 +522,7 @@ function renderManifest(m,preview){
 function addManifest(m,preview){
   const i=manifests.findIndex(x=>x.m.attachment_sha256===m.attachment_sha256&&(x.m.trial_index??null)===(m.trial_index??null)); const entry={m,preview:preview||(i>=0&&manifests[i].m.manifest_id===m.manifest_id?manifests[i].preview:null)};
   if(i>=0)manifests[i]=entry; else manifests.push(entry);
-  $('#noData').style.display='none';const box=$('#manifests');box.innerHTML='';manifests.forEach(x=>box.appendChild(renderManifest(x.m,x.preview)));badge('#bData',manifests.length);updateAttachments();
+  $('#noData').style.display='none';const box=$('#manifests');box.innerHTML='';manifests.forEach(x=>box.appendChild(renderManifest(x.m,x.preview)));badge('#bData',manifests.length);
 }
 /* multi-file formats (EEGLAB .set+.fdt, BrainVision .vhdr+.vmrk+.eeg): data files first, then the header, one at a time */
 const SIDECAR=/\.(fdt|vmrk|eeg)$/i;
@@ -851,12 +846,6 @@ function openArtifact(id){
   const report=$('#artifacts .report-preview');if(report)report.open=true;
   if(artifacts[id].summary?.details_omitted)api(`/artifacts/${id}`).then(record=>{addArtifactCard(record,true);if(selectedArtifact===id){const report=$('#artifacts .report-preview');if(report)report.open=true}}).catch(reportError);
 }
-function updateAttachments(){
-  const menu=$('#attachmentMenu');menu.replaceChildren();
-  const add=(label,detail,icon,run)=>{const button=document.createElement('button');button.setAttribute('role','menuitem');button.innerHTML=`<span class="ms">${icon}</span><span>${esc(label)}<small>${esc(detail)}</small></span>`;button.onclick=()=>{menu.hidePopover();run()};menu.appendChild(button)};
-  add('分析结果',`${TranscriptUI.resultItems(Object.keys(artifacts),id=>artifacts[id]).length} 项 · 按分析查看图表和文件`,'folder_open',()=>openResults());
-  add('会话文件',`${manifests.length} 个输入文件`,'description',()=>showTabAndOpen('data'));
-}
 $('#resultSearch').oninput=()=>renderResultCatalog();
 $('#resultScope').onclick=()=>{const menu=$('#resultScopeMenu');if(menu.matches(':popover-open'))menu.hidePopover();else openResultScope()};
 $('#resultScope').onkeydown=event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();openResultScope(event.key==='ArrowUp')}};
@@ -883,7 +872,7 @@ function artifactSourceOverview(record){
 function addArtifactCard(a,replace=false){
   if(artifacts[a.artifact_id]&&!replace)return;artifacts[a.artifact_id]=a;badge('#bArt',Object.keys(artifacts).length);
   if(selectedArtifact===a.artifact_id)renderArtifactDetail(a);
-  updateAttachments();transcript.metadata();
+  transcript.metadata();
 }
 function renderArtifactDetail(a){
   $('#artifacts').replaceChildren();
@@ -1225,13 +1214,11 @@ document.addEventListener('click',e=>{if(e.target.matches('.report-image'))light
 document.addEventListener('keydown',e=>{if($('#sessionDialog').open||e.defaultPrevented)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();newSession().catch(reportError)}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();openDrawer()}if(e.key==='Escape'){if(document.querySelector(':popover-open'))return;if($('#lightbox').style.display==='flex')$('#lightbox').style.display='none';else if(document.body.classList.contains('sheet-open'))closeSheet();else if($('#drawer').classList.contains('open'))closeDrawer()}});
 
 document.addEventListener('click',e=>{const button=e.target.closest('[data-activate-skill]');if(button)activateSkill(button.dataset.activateSkill).then(()=>{if(narrow())closeSheet()}).catch(reportError)});
-$('#attachmentsBtn').onclick=()=>{updateAttachments();const menu=$('#attachmentMenu');menu.showPopover();const rect=$('#attachmentsBtn').getBoundingClientRect();menu.style.left=Math.max(12,Math.min(rect.right-menu.offsetWidth,innerWidth-menu.offsetWidth-12))+'px';menu.style.top=Math.min(rect.bottom+8,innerHeight-menu.offsetHeight-12)+'px'};
 $('#trashToggle').onclick=()=>{trashView=!trashView;$('#sessionSearch').value='';updateSessionListHeader();refreshSessions().catch(reportError)};
-$('#sessionActions').onclick=()=>openSessionMenu({session_id:sessionId,title:currentTitle,parent_session_id:currentParent,running:streaming},$('#sessionActions'));
 $('#sessionMenu').addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(!button)return;const record=menuRecord;$('#sessionMenu').hidePopover();if(!button.dataset.action.startsWith('export-'))performMenuAction(button.dataset.action,record).catch(reportError)});
 $('#removeWorkspace').onclick=()=>{const record=menuWorkspace;$('#workspaceMenu').hidePopover();removeWorkspace(record).catch(reportError)};
 $('#sessionMenu').addEventListener('keydown',e=>{const buttons=[...$('#sessionMenu').querySelectorAll('[role=menuitem]:not([hidden]):not(:disabled)')],index=buttons.indexOf(document.activeElement);if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();buttons[(index+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus()}});
-window.addEventListener('resize',()=>{if($('#resultScopeMenu').matches(':popover-open'))$('#resultScopeMenu').hidePopover();if($('#llmPicker').matches(':popover-open'))$('#llmPicker').hidePopover();if($('#sessionMenu').matches(':popover-open'))$('#sessionMenu').hidePopover();if($('#attachmentMenu').matches(':popover-open'))$('#attachmentMenu').hidePopover()});
+window.addEventListener('resize',()=>{if($('#resultScopeMenu').matches(':popover-open'))$('#resultScopeMenu').hidePopover();if($('#llmPicker').matches(':popover-open'))$('#llmPicker').hidePopover();if($('#sessionMenu').matches(':popover-open'))$('#sessionMenu').hidePopover();if($('#workspaceMenu').matches(':popover-open'))$('#workspaceMenu').hidePopover()});
 $('#dialogClose').onclick=$('#dialogCancel').onclick=()=>$('#sessionDialog').close();
 $('#sessionForm').addEventListener('submit',async e=>{
   e.preventDefault();if(uploading||submitting||navigating){snack('文件或消息正在提交，请稍候');return}const {action,record}=dialogAction;$('#dialogSubmit').disabled=true;$('#dialogError').hidden=true;

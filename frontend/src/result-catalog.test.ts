@@ -37,7 +37,7 @@ test('result browser scopes an analysis, searches Chinese names, and renders onl
   const context:any={document:dom.window.document,$:(selector:string)=>dom.window.document.querySelector(selector),TranscriptUI:catalog,artifacts:records,manifests:[{m:{manifest_id:'sig',original_name:'s02.dat'}}],transcript:{getSnapshot:()=>({rows})},resultScope:'latest',selectedArtifact:null,KIND_ICON:{plot:'image'},artifactTitle:catalog.resultTitle,artifactTimeLabel:()=>'',artifactSourceOverview:()=>'',esc:(value:any)=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!)),showTab(){},openSheet(){},reportError(){},api:async()=>{},lightbox(){}};
   vm.createContext(context);
   const source=readFileSync(new URL('../bridge/app.js',import.meta.url),'utf8');
-  vm.runInContext(source.slice(source.indexOf('function resultGroups('),source.indexOf('function updateAttachments(')),context);
+  vm.runInContext(source.slice(source.indexOf('function resultGroups('),source.indexOf("$('#resultSearch').oninput=")),context);
   vm.runInContext(source.slice(source.indexOf('function renderArtifactDetail('),source.indexOf("document.addEventListener('click'",source.indexOf('function renderArtifactDetail('))),context);
   assert.equal(context.workspaceDeliveryFolder([{workspace_id:'ws',path:'analysis/clean/trial_01.npy'}],41).path,'.','a partial preview cannot establish the parent folder of unlisted files');
   context.renderResultCatalog();

@@ -18,8 +18,6 @@
     <span class="grow"></span>
     <span class="status" id="connChip" title="LLM"><span class="dot" id="connDot"></span><span id="connText">连接中</span></span>
     <button class="icon-btn state" id="newSession" title="新分析"><span class="ms">edit_square</span></button>
-    <button class="icon-btn state" id="sessionActions" title="当前会话操作" disabled><span class="ms">more_horiz</span></button>
-    <button class="icon-btn state" id="attachmentsBtn" title="输出与附件"><span class="ms">inventory_2</span></button>
     <button class="panel-toggle state" id="sheetBtn" title="查看数据、结果和依据" aria-expanded="false" aria-controls="detailPanel"><span class="ms">panel_right</span><span class="panel-toggle-label">详情</span></button>
   </header>
 
@@ -117,11 +115,10 @@
 
 <div class="llm-picker" id="llmPicker" popover role="dialog" aria-label="选择对话模型"><div class="llm-picker-head">对话模型<button class="icon-btn" id="refreshLLMModels" title="刷新模型列表"><span class="ms">refresh</span></button></div><input id="llmSearch" class="llm-search" type="search" placeholder="搜索模型…" aria-label="搜索模型"><div class="llm-options" id="llmOptions" role="listbox" aria-label="网关模型"></div></div>
 
-<div class="attachment-menu" id="attachmentMenu" popover role="menu" aria-label="输出内容和来源"></div>
 <div class="session-menu workspace-menu" id="workspaceMenu" popover role="menu" aria-label="工作区操作">
   <div id="workspaceMenuTitle" class="menu-title"></div>
   <button role="menuitem" id="removeWorkspace"><span class="ms">close</span>移除工作区</button>
-  <p class="workspace-menu-note" id="workspaceMenuNote">保留本地文件，会话移至独立会话。</p>
+  <p class="workspace-menu-note" id="workspaceMenuNote">保留本地文件和已有会话。</p>
 </div>
 <div class="session-menu" id="sessionMenu" popover role="menu" aria-label="会话操作">
   <div id="menuTitle" class="menu-title"></div>

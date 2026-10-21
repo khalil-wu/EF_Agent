@@ -9,34 +9,44 @@ const record={workspace_id:'ws_abcdef123456',name:'采集数据',root:'E:/record
 
 function fixture(failure){
   const {window}=new JSDOM('<input id="sessionSearch"><div id="sesList"></div><div id="workspaceMenu"><div id="workspaceMenuTitle"></div><button id="removeWorkspace"></button><p id="workspaceMenuNote"></p></div>',{url:'http://localhost/'});
-  const document=window.document,calls=[],notices=[],cleared=[];
+  const document=window.document,calls=[],notices=[],cleared=[],created=[];
   document.querySelector('#workspaceMenu').showPopover=function(){this.dataset.open='true'};
   const storage=new Map();
   const runtime={document,$:selector=>document.querySelector(selector),innerWidth:1280,innerHeight:900,
     IconSystem:{svg:()=>''},esc:String,localStorage:{setItem:(key,value)=>storage.set(key,value)},
     sessionId:'ses_current',currentWorkspaceID:record.workspace_id,streaming:false,uploading:false,submitting:false,navigating:false,
-    workspaceCatalog:[record],sessionsCache:[{session_id:'ses_current',workspace_id:record.workspace_id,title:'保留的分析'}],expandedWorkspaces:{[record.workspace_id]:true},trashView:false,
+    workspaceCatalog:[record],sessionsCache:[{session_id:'ses_current',workspace_id:record.workspace_id,title:'保留的分析'}],trashView:false,
     fileMentions:{removeWorkspace:id=>cleared.push(id),update(){}},resetAttachmentView(){},snack:text=>notices.push(text),
-    closeDrawer(){},resumeSession(){},openSessionMenu(){},newSession(){},reportError(){},
+    closeDrawer(){},resumeSession(){},openSessionMenu(){},newSession:async(...args)=>created.push(args),reportError(){},
     api:async(url,options)=>{calls.push([url,options.method]);if(failure)throw failure;return {detached_sessions:1}},
     refreshSessions:async()=>{runtime.workspaceCatalog=[];runtime.sessionsCache[0].workspace_id='';runtime.renderSessionList()}
   };
   vm.runInNewContext(source.slice(source.indexOf('function renderSessionList('),source.indexOf('function openSessionMenu(')),runtime);
-  return {runtime,document,calls,notices,cleared,storage};
+  return {runtime,document,calls,notices,cleared,created,storage};
 }
 
-test('workspace menu removes the mount and retains its conversation as independent',async()=>{
+test('workspace right-click menu removes the mount and retains its conversation without a category heading',async()=>{
   const f=fixture();f.runtime.renderSessionList();
-  f.document.querySelector('.workspace-more').click();
+  const header=f.document.querySelector('.workspace-folder');
+  assert.equal(header.querySelectorAll('button').length,1);
+  assert.equal(f.document.querySelector('.workspace-folder-toggle'),null);
+  assert.match(f.document.querySelector('.workspace-chats').textContent,/保留的分析/);
+  header.querySelector('.workspace-new').click();
+  assert.deepEqual(f.created,[[false,record.workspace_id]]);
+  const event=new f.document.defaultView.MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:120,clientY:95});
+  header.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
   assert.equal(f.document.querySelector('#workspaceMenu').dataset.open,'true');
+  assert.equal(f.document.querySelector('#workspaceMenu').style.left,'120px');
+  assert.equal(f.document.querySelector('#workspaceMenu').style.top,'95px');
   assert.match(f.document.querySelector('#workspaceMenuNote').textContent,/保留本地文件/);
   await f.runtime.removeWorkspace(record);
   assert.deepEqual(f.calls,[[`/workspaces/${record.workspace_id}`,'DELETE']]);
   assert.equal(f.runtime.currentWorkspaceID,'');
   assert.equal(f.document.querySelector('.workspace-group'),null);
-  assert.match(f.document.querySelector('#sesList').textContent,/独立会话.*保留的分析/);
+  assert.match(f.document.querySelector('#sesList').textContent,/保留的分析/);
+  assert.doesNotMatch(f.document.querySelector('#sesList').textContent,/独立会话/);
   assert.deepEqual(f.cleared,[record.workspace_id]);
-  assert.equal(f.storage.get('eeg-workspace-folders'),'{}');
+  assert.equal(f.storage.size,0);
 });
 
 test('a failed removal keeps the current workspace and draft references',async()=>{
@@ -49,7 +59,7 @@ test('a failed removal keeps the current workspace and draft references',async()
 
 test('workspace removal is unavailable while one of its conversations is running',()=>{
   const f=fixture();f.runtime.sessionsCache[0].running=true;f.runtime.renderSessionList();
-  f.document.querySelector('.workspace-more').click();
+  f.document.querySelector('.workspace-folder').dispatchEvent(new f.document.defaultView.KeyboardEvent('keydown',{key:'F10',shiftKey:true,cancelable:true}));
   assert.equal(f.document.querySelector('#removeWorkspace').disabled,true);
   assert.match(f.document.querySelector('#workspaceMenuNote').textContent,/完成后可移除/);
 });
