@@ -23,6 +23,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +43,8 @@ import (
 
 //go:embed static/*
 var static embed.FS
+
+var staticAssetRef = regexp.MustCompile(`(/static/[^"?]+)"`)
 
 type Server struct {
 	Cfg               agent.Config
@@ -71,7 +74,11 @@ func (s *Server) Routes() http.Handler {
 	if dir := os.Getenv("EEGAGENT_STATIC_DIR"); dir != "" {
 		assets = os.DirFS(dir)
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(assets))))
+	files := http.StripPrefix("/static/", http.FileServer(http.FS(assets)))
+	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		files.ServeHTTP(w, r)
+	}))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		b, err := fs.ReadFile(assets, "index.html")
 		if err != nil {
@@ -79,7 +86,9 @@ func (s *Server) Routes() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(b)
+		w.Header().Set("Cache-Control", "no-cache")
+		version := url.QueryEscape(s.BuildID + "." + s.ConfigID)
+		_, _ = w.Write(staticAssetRef.ReplaceAll(b, []byte(`${1}?v=`+version+`"`)))
 	})
 	mux.HandleFunc("GET /sessions", s.listSessions)
 	mux.HandleFunc("/workspaces", s.workspaceProxy)

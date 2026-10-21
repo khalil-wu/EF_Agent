@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -180,6 +182,35 @@ func TestWorkerFailureIsVisibleAndAssetsAreLocal(t *testing.T) {
 		b, _ := io.ReadAll(w.Result().Body)
 		if w.Code != 200 || len(b) == 0 {
 			t.Fatalf("%s: %d", path, w.Code)
+		}
+	}
+}
+
+func TestPageBindsEveryStaticAssetToTheRunningBuildAndConfiguration(t *testing.T) {
+	references := regexp.MustCompile(`(?:src|href)="(/static/[^"]+)"`)
+	previous := map[string]string{}
+	for _, identity := range []struct{ build, config string }{{"build-one", "fonts-one"}, {"build-two", "fonts-one"}, {"build-two", "fonts-two"}} {
+		s := New(agent.Config{}, nil, t.TempDir())
+		s.BuildID, s.ConfigID = identity.build, identity.config
+		h := s.Routes()
+		page := request(t, h, "GET", "/", "")
+		if page.Code != 200 || page.Header().Get("Cache-Control") != "no-cache" {
+			t.Fatalf("page: %d %v", page.Code, page.Header())
+		}
+		matches := references.FindAllStringSubmatch(page.Body.String(), -1)
+		if len(matches) < 10 {
+			t.Fatalf("missing script or stylesheet references: %d", len(matches))
+		}
+		for _, match := range matches {
+			asset, err := url.Parse(match[1])
+			if err != nil || asset.Query().Get("v") != identity.build+"."+identity.config || previous[asset.Path] == asset.String() {
+				t.Fatalf("asset did not follow its page version: %s (%v)", match[1], err)
+			}
+			previous[asset.Path] = asset.String()
+			response := request(t, h, "GET", asset.String(), "")
+			if response.Code != 200 || response.Header().Get("Cache-Control") != "no-cache" {
+				t.Fatalf("asset %s: %d %v", asset, response.Code, response.Header())
+			}
 		}
 	}
 }
