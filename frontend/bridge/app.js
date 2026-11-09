@@ -110,7 +110,12 @@ function lightbox(src){const lb=$('#lightbox');lb.querySelector('img').src=src;l
 $('#lightbox').onclick=()=>$('#lightbox').style.display='none';
 function scroll(){const selection=document.getSelection();if(followBottom&&!(selection?.toString()&&$('#chat').contains(selection.anchorNode))){const c=$('#chat');c.scrollTop=c.scrollHeight}}
 $('#chat').addEventListener('load',e=>{if(e.target.tagName==='IMG')scroll()},true);
-$('#chat').addEventListener('scroll',()=>{const c=$('#chat');followBottom=c.scrollHeight-c.scrollTop-c.clientHeight<100;$('#jumpToLatest').hidden=followBottom||Boolean($('#empty'))},{passive:true});
+let scrollIntentAt=-Infinity,pointerHeld=false;
+for(const type of ['wheel','touchmove'])$('#chat').addEventListener(type,()=>scrollIntentAt=performance.now(),{passive:true});
+$('#chat').addEventListener('pointerdown',()=>pointerHeld=true);addEventListener('pointerup',()=>{if(pointerHeld)scrollIntentAt=performance.now();pointerHeld=false});addEventListener('pointercancel',()=>pointerHeld=false);
+document.addEventListener('keydown',e=>{if(['PageUp','PageDown','Home','End','ArrowUp','ArrowDown',' '].includes(e.key)&&!e.target.closest?.('input,textarea,[contenteditable]'))scrollIntentAt=performance.now()});
+// Layout shifts (an image finishing, the composer resizing) clamp scrollTop; only a user gesture stops following the latest message.
+$('#chat').addEventListener('scroll',()=>{const c=$('#chat'),near=c.scrollHeight-c.scrollTop-c.clientHeight<100;if(near||pointerHeld||performance.now()-scrollIntentAt<1000)followBottom=near;$('#jumpToLatest').hidden=followBottom||Boolean($('#empty'));document.querySelector('main').classList.toggle('scrolled',c.scrollTop>2)},{passive:true});
 $('#jumpToLatest').onclick=()=>{followBottom=true;scroll();$('#jumpToLatest').hidden=true};
 new ResizeObserver(([entry])=>{document.querySelector('main').style.setProperty('--composer-height',entry.borderBoxSize[0].blockSize+'px');scroll()}).observe($('.composer'));
 
@@ -1256,6 +1261,9 @@ transcript=TranscriptUI.mount($('#chat'),{
   copy:text=>navigator.clipboard.writeText(SourceCitations.copyText(text,knowledge,sessionId,location.origin)).then(()=>snack('已复制回复与引用')).catch(reportError),
   retry:async()=>{try{const snapshot=await api('/sessions/'+sessionId);if(snapshot.running)await resumeSession(sessionId);else await send({retry:true})}catch(error){reportError(error)}},changed:scroll
 });
+AmbientField.mount(document.querySelector('main'),$('#chat'));
+// Layout transitions start after the first paint so restored panel state does not animate in.
+requestAnimationFrame(()=>requestAnimationFrame(()=>document.body.classList.add('motion-ready')));
 const saved=new URLSearchParams(location.search).get('session')||localStorage.getItem('eeg-session');
 if(saved)resumeSession(saved).catch(e=>{localStorage.removeItem('eeg-session');history.replaceState(null,'','/');reportError(e)});
 autosize();

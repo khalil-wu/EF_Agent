@@ -288,7 +288,7 @@ const attachmentManifest=(id,name,modality='eeg')=>({manifest_id:id,original_nam
 const attachmentTick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('published shell is produced from the tested bridge sources',()=>{
- for(const name of ['app.js','app.css','record-card.css','index.html','execution-details.js','attachment-preview.js','file-mentions.js']){
+ for(const name of ['app.js','app.css','record-card.css','index.html','execution-details.js','attachment-preview.js','file-mentions.js','ambient.js']){
   let expected=readFileSync(path.join(__dirname,'../frontend/bridge',name),'utf8');
   const localFonts=path.join(__dirname,'../frontend/bridge/fonts.local.css');
   if(name==='app.css'&&existsSync(localFonts))expected+='\n'+readFileSync(localFonts,'utf8');

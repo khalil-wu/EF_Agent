@@ -160,7 +160,7 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
 
 export function mount(container:HTMLElement,options:Options){
   const store=createTranscriptStore();
-  function Transcript(){const state=useSyncExternalStore(store.subscribe,store.getSnapshot);useEffect(options.changed,[state.contentVersion,state.metadataVersion]);return state.rows.length?<>{state.rows.map(row=>row.type==='user'?<UserMessage key={options.session()+row.id} row={row} options={options}/>:<AgentTurn key={options.session()+row.id} row={row} options={options} toggle={()=>store.toggle(row.id)} engage={()=>store.engage(row.id)} metadataVersion={state.metadataVersion}/>)}</>:<div className="empty" id="empty"><h1>想分析什么？</h1></div>}
+  function Transcript(){const state=useSyncExternalStore(store.subscribe,store.getSnapshot);useEffect(options.changed,[state.contentVersion,state.metadataVersion]);return state.rows.length?<>{state.rows.map(row=>row.type==='user'?<UserMessage key={options.session()+row.id} row={row} options={options}/>:<AgentTurn key={options.session()+row.id} row={row} options={options} toggle={()=>store.toggle(row.id)} engage={()=>store.engage(row.id)} metadataVersion={state.metadataVersion}/>)}</>:<div className="empty" id="empty"><h1><svg className="hero-mark" viewBox="0 0 24 24" aria-hidden="true"><path pathLength={1} d="M2 12h3.5l2.2-6 4 13 3-9 1.8 4H22"/></svg>想分析什么？</h1></div>}
   createRoot(container).render(<Transcript/>);
   return store;
 }
