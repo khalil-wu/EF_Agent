@@ -22,7 +22,7 @@
   --ok:#2f7d4a;--ok-c:#e3f1e6;--warn:#8a6a33;--warn-c:#f5ecd6;--info:#2f6fdd;--info-c:#e8f0fe;
   --error-surface:#fdf5f3;--error-border:#efdcd6;--error-text:#9a3f35;
   --r-xs:6px;--r-s:9px;--r-m:12px;--r-l:18px;--r-xl:24px;--r-full:999px;
-  --font:"Anthropic Sans",system-ui,"PingFang SC",-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei UI",system-ui,sans-serif;
+  --font:"Anthropic Sans","PingFang SC",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI","Microsoft YaHei UI",sans-serif;
   --font-serif:"Anthropic Serif","Tiempos Headline","Copernicus","New York","Noto Serif SC","Source Han Serif SC","Songti SC",Georgia,serif;
   --mono:"Anthropic Mono","Cascadia Code","PingFang SC",Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;
   --ease:cubic-bezier(.2,0,0,1);--ease-decel:cubic-bezier(.05,.7,.1,1);--ease-std:cubic-bezier(.2,.8,.2,1);
