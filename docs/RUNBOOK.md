@@ -4,7 +4,7 @@
 
 ## 配置
 
-`scripts/start.ps1`、`serve.ps1` 和 `knowledge.ps1` 共用 `environment.ps1`，从当前终端读取环境变量；可用 `-Config` 显式加载本机 PowerShell 配置文件。已有 `EEGAGENT_*` 配置仍可使用，同名 `EFAGENT_*` 优先。本机配置文件不要提交到 Git。
+`scripts/start.ps1`、`serve.ps1` 和 `knowledge.ps1` 共用 `environment.ps1`，自动加载 `scripts/settings.local.ps1`，并读取当前终端的环境变量。也可用 `-Config` 指定配置文件。已有 `EEGAGENT_*` 配置仍可使用，同名 `EFAGENT_*` 优先。本机配置文件不要提交到 Git。
 
 | 变量 | 用途 / 默认值 |
 | --- | --- |
@@ -26,13 +26,13 @@
 
 `/health` 提供应用、组件、构建、配置标识、源码目录、数据目录与 PID。端口被另一实例占用时，启动器会指出冲突；使用该实例的配置或选择其他端口。迁移旧版服务时，在 `/sessions` 全部 `running=false` 后停止旧网关和 worker，再运行新启动器。
 
-代码仅从一个 Git checkout 运行。已有 EEGAgent 的数据、知识库、私有模型登记、虚拟环境与本机字体可保留原目录，通过本机配置中的路径引用；EFAgent 与 EEGAgent 是同一项目。
+代码与本机数据统一放在一个 EFAgent 目录。启动脚本自动加载 `scripts/settings.local.ps1`，其中指定数据、私有知识库、模型登记与字体路径。从 EEGAgent 目录迁移时可为旧路径创建目录联接，保留历史会话中的文件引用。EFAgent 与 EEGAgent 是同一项目。
 
 ## 图片问答
 
 `configs/conversation_models.json` 按接口返回的精确模型 ID 登记 `image_input`、验收日期与证据。当前 MiniMax-M3 已通过本机接口的四色象限定位测试；这项测试仅验证基础图片输入。接入其他模型时，使用实际接口完成图片定位、中文图表与追问验收，再在本机能力文件登记。
 
-有图片的会话需要选择标有“看图”的模型。前端保留未发送草稿并打开模型选择器，网关在提交附件之前核对能力；模型由用户明确选择。
+有图片的会话使用标有“看图”的模型。发送时前端会切换到已登记的看图模型，切换失败时保留草稿；网关在提交附件之前核对模型能力。
 
 调试时仍可分别运行 `serve.ps1 -Component worker` 和 `serve.ps1 -Component gateway`，让服务在终端前台运行；Ctrl+C 停止对应进程。
 

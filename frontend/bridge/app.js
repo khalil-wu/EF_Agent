@@ -995,6 +995,7 @@ async function send(options={}){
     if(!retry&&!draft&&!submitted.length&&!references.length)return;
     const attached=submitted.map(file=>fileUploads.get(file).manifest).filter(Boolean);
     if(!await ensureImageModel(attached))return;
+    if(version!==viewVersion)return;
     if(submitted.length&&!attached.length)throw new Error('附属文件已保存；请添加对应的头文件，组成可读取的脑电记录后再发送。');
     const imagesOnly=attached.length>0&&attached.every(manifest=>manifest.modality==='image');
     const text=retry?'':draft||(imagesOnly?'请解释本次上传的图片，结合图中的标题、坐标、图例和关键变化回答。':references.length?'请检查本次引用的数据，概述结构和质量并建议下一步分析。':'请检查本次上传的数据，概述结构和质量并建议下一步分析。');
@@ -1086,13 +1087,19 @@ async function runSlashCommand(value){
 }
 
 /* ---------- conversation model selection ---------- */
-function hasImageInput(attached=[]){return manifests.some(item=>item.modality==='image')||attached.some(item=>item.modality==='image')||pendingFiles.some(file=>fileUploads.get(file).manifest?.modality==='image')}
+function hasImageInput(attached=[]){return manifests.some(item=>item.m.modality==='image')||attached.some(item=>item.modality==='image')||pendingFiles.some(file=>fileUploads.get(file).manifest?.modality==='image')}
 async function ensureImageModel(attached){
   if(!hasImageInput(attached))return true;
   if(!llmModels.length)await loadLLMModels();
   if(modelCapabilities[currentLLMModel]?.image_input)return true;
+  const visionModel=llmModels.find(name=>modelCapabilities[name]?.image_input);
+  if(visionModel){
+    snack('自动切换到 '+visionModel+' 以支持图片输入');
+    await selectLLMModel(visionModel);
+    return true;
+  }
   $('#llmSearch').value='';$('#llmPicker').showPopover();renderLLMModels();$('#llmSearch').focus();
-  snack('选择看图模型后发送图片');return false;
+  snack('请选择支持图片的模型');return false;
 }
 function setConversationModel(name){currentLLMModel=name;$('#composerModel').textContent=name;$('#llmSelector').title='切换对话模型：'+name;$('#connChip').title='对话模型：'+name;renderPendingFiles()}
 function renderLLMModels(){

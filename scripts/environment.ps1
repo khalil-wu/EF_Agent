@@ -2,6 +2,11 @@ param([string]$Config)
 
 $ErrorActionPreference = 'Stop'
 $taskRepo = Split-Path $PSScriptRoot -Parent
+$taskRepoInfo = Get-Item -LiteralPath $taskRepo
+if ($taskRepoInfo.LinkType -eq 'Junction') { $taskRepo = @($taskRepoInfo.Target)[0] }
+if (-not $Config -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'settings.local.ps1'))) {
+    $Config = Join-Path $PSScriptRoot 'settings.local.ps1'
+}
 if ($Config) { . $Config }
 foreach ($taskVariable in Get-ChildItem Env:EFAGENT_*) {
     [Environment]::SetEnvironmentVariable('EEGAGENT_' + $taskVariable.Name.Substring(8), $taskVariable.Value, 'Process')

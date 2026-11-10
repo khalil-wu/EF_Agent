@@ -1,3 +1,4 @@
+[CmdletBinding(PositionalBinding=$false)]
 param([string]$Config, [Parameter(ValueFromRemainingArguments=$true)][string[]]$CommandArgs)
 . (Join-Path $PSScriptRoot 'environment.ps1') -Config $Config
 Set-Location $taskRepo

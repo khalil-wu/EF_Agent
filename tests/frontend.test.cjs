@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {readFileSync,existsSync}=require('node:fs');
+const {readFileSync}=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const source=readFileSync(path.join(__dirname,'../frontend/bridge/app.js'),'utf8');
@@ -266,6 +266,7 @@ function attachmentRuntime(session='session-one'){
  }
  const runtime={fileMentions:{save(){},restore(){},clear(){},references:()=>[],update(){}},currentWorkspaceID:'',sessionId:session,viewVersion:0,pendingFiles:[],pendingFilesBySession:new Map(),fileUploads:new WeakMap(),uploadTask:null,uploading:false,submitting:false,navigating:false,streaming:false,stopRequested:false,changingModel:false,creating:null,streamController:null,pendingInput:null,currentTitle:'',currentParent:'',currentLLMModel:'test',mode:'readonly',trashView:false,requestFailure:'',followBottom:true,liveCursor:null,eventTraces:new Map(),
   manifests:[],llmModels:['test'],modelCapabilities:{test:{image_input:true}},renderLLMModels(){},
+  async selectLLMModel(model){await runtime.api(`/sessions/${runtime.sessionId}/model`,{method:'PATCH',body:JSON.stringify({model})});runtime.currentLLMModel=model},
   $:element,$$:()=>[],document:{createElement:node},FormData:MockFormData,XMLHttpRequest:MockXHR,AbortController,crypto:{randomUUID:()=>require('node:crypto').randomUUID()},
   updateCommands(){},updateSessionListHeader(){},rememberSession(){},resetSourceView(){},resetAttachmentView(){},resetView(){},setConversationModel(){},setActiveSkill(){},renderSession(){},watchSession(){},setConn(){},restoreStatus(){},refreshSessions:async()=>{},
   snack:text=>notices.push(text),reportError:error=>notices.push(error.message),traceEv:()=>({className:'ev run',querySelector:()=>node()}),traceDetail(){},addManifest(manifest){runtime.committed.push(manifest)},committed:[],
@@ -289,9 +290,7 @@ const attachmentTick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('published shell is produced from the tested bridge sources',()=>{
  for(const name of ['app.js','app.css','record-card.css','index.html','execution-details.js','attachment-preview.js','file-mentions.js','ambient.js']){
-  let expected=readFileSync(path.join(__dirname,'../frontend/bridge',name),'utf8');
-  const localFonts=path.join(__dirname,'../frontend/bridge/fonts.local.css');
-  if(name==='app.css'&&existsSync(localFonts))expected+='\n'+readFileSync(localFonts,'utf8');
+  const expected=readFileSync(path.join(__dirname,'../frontend/bridge',name),'utf8');
   assert.equal(readFileSync(path.join(__dirname,'../gateway/internal/server/static',name),'utf8'),expected);
  }
 });
@@ -333,24 +332,20 @@ test('restored prepared drafts submit their real IDs without uploading again',as
  assert.equal(requests.length,0);assert.deepEqual(messages[0].body.attachments,['sig_saved']);
 });
 
-test('image drafts wait for an explicit capable model selection and retain the composer',async()=>{
- const {runtime:r,element,messages,users}=attachmentRuntime();
+test('image drafts switch to a capable model before sending',async()=>{
+ const {runtime:r,element,messages,apiCalls}=attachmentRuntime();
  r.modelCapabilities={vision:{image_input:true}};r.llmModels=['test','vision'];
  r.restorePendingFiles({session_id:'session-one',staged_manifests:[attachmentManifest('img_draft','脑电图.png','image')]});
  const draft='解释这张图的坐标与曲线';element('#input').value=draft;
  await r.send();
- assert.equal(messages.length,0);assert.equal(users.length,0);assert.equal(r.currentLLMModel,'test');
- assert.equal(element('#input').value,draft);assert.equal(r.pendingFiles.length,1);
- assert.equal(element('#llmPicker').open,true);assert.equal(r.submitting,false);assert.equal(r.streaming,false);
- r.currentLLMModel='vision';
- await r.send();
+ assert.equal(r.currentLLMModel,'vision');assert.equal(apiCalls.some(call=>call.url==='/sessions/session-one/model'&&call.method==='PATCH'),true);
  assert.equal(messages.length,1);assert.deepEqual(messages[0].body.attachments,['img_draft']);
  assert.equal(messages[0].body.text,draft);assert.equal(r.pendingFiles.length,0);assert.equal(element('#input').value,'');
 });
 
 test('image follow-ups keep the current draft when a restored conversation uses a text model',async()=>{
  const {runtime:r,element,messages}=attachmentRuntime();
- r.manifests=[attachmentManifest('img_committed','图.png','image')];r.modelCapabilities={};
+ r.manifests=[{m:attachmentManifest('img_committed','图.png','image')}];r.modelCapabilities={};
  element('#input').value='左下角是什么？';await r.send();
  assert.equal(messages.length,0);assert.equal(element('#input').value,'左下角是什么？');
  assert.equal(r.currentLLMModel,'test');assert.equal(element('#llmPicker').open,true);
@@ -358,11 +353,28 @@ test('image follow-ups keep the current draft when a restored conversation uses 
 
 test('a restored image conversation loads model capabilities before deciding whether to send',async()=>{
  const {runtime:r,element,messages}=attachmentRuntime();
- r.manifests=[attachmentManifest('img_restored','图.png','image')];r.llmModels=[];r.modelCapabilities={};
+ r.manifests=[{m:attachmentManifest('img_restored','图.png','image')}];r.llmModels=[];r.modelCapabilities={};
  let loaded=false;r.loadLLMModels=async()=>{loaded=true;r.llmModels=['test'];r.modelCapabilities={test:{image_input:true}}};
  element('#input').value='解释横坐标';await r.send();
  assert.equal(loaded,true);assert.equal(messages.length,1);assert.equal(r.currentLLMModel,'test');
  assert.equal(element('#llmPicker').open,undefined);
+});
+
+test('a failed image model switch preserves the draft and attachment',async()=>{
+ const {runtime:r,element,messages,users}=attachmentRuntime();
+ r.modelCapabilities={vision:{image_input:true}};r.llmModels=['test','vision'];
+ r.restorePendingFiles({session_id:'session-one',staged_manifests:[attachmentManifest('img_draft','图.png','image')]});
+ r.selectLLMModel=async()=>{throw new Error('模型切换失败')};
+ element('#input').value='解释图片';await r.send();
+ assert.equal(messages.length,0);assert.equal(users.length,0);assert.equal(element('#input').value,'解释图片');assert.equal(r.pendingFiles.length,1);
+});
+
+test('leaving the conversation during an image model switch does not submit to the old session',async()=>{
+ const {runtime:r,element,messages}=attachmentRuntime();
+ r.manifests=[{m:attachmentManifest('img_saved','图.png','image')}];r.modelCapabilities={vision:{image_input:true}};r.llmModels=['test','vision'];
+ r.selectLLMModel=async()=>{r.viewVersion++};
+ element('#input').value='继续解释图片';await r.send();
+ assert.equal(messages.length,0);assert.equal(element('#input').value,'继续解释图片');
 });
 
 test('removing a restored draft deletes its server staging record',async()=>{
