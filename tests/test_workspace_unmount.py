@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from eegagent.worker import app as worker
@@ -38,3 +40,21 @@ def test_removing_an_unavailable_folder_needs_no_access_to_the_source(tmp_path, 
     assert workspaces.list_workspaces() == []
     assert client.delete("/workspaces/ws_000000000000").status_code == 404
     assert client.delete("/workspaces/invalid-id").status_code == 400
+
+
+def test_catalog_marks_workspaces_whose_folder_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("EEGAGENT_STORAGE_DIR", str(tmp_path / "storage"))
+    present = tmp_path / "recordings"
+    present.mkdir()
+    live = workspaces.mount(str(present), "采集数据")
+    missing = tmp_path / "offline-drive"
+    missing.mkdir()
+    gone = workspaces.mount(str(missing), "离线盘")
+    missing.rmdir()
+    client = TestClient(worker.app)
+    catalog = {item["workspace_id"]: item for item in client.get("/workspaces").json()}
+    assert catalog[live["workspace_id"]]["available"] is True
+    assert catalog[gone["workspace_id"]]["available"] is False
+    stored = json.loads((tmp_path / "storage" / "workspaces" / f"{gone['workspace_id']}.json").read_text(encoding="utf-8"))
+    assert "available" not in stored
+    assert all("available" not in record for record in workspaces.list_workspaces())

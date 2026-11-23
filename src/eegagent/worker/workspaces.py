@@ -17,7 +17,10 @@ def catalog():
 def load(workspace_id):
     if not re.fullmatch(r"ws_[0-9a-f]{12}", workspace_id):
         raise ValueError("无效工作区")
-    return json.loads((catalog() / (workspace_id + ".json")).read_text(encoding="utf-8"))
+    record = json.loads((catalog() / (workspace_id + ".json")).read_text(encoding="utf-8"))
+    from eegagent.worker.store import relocate
+    record["root"] = relocate(record["root"])
+    return record
 
 
 def save(record):
@@ -28,7 +31,10 @@ def save(record):
 
 
 def list_workspaces(include_removed=False):
+    from eegagent.worker.store import relocate
     records = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(catalog().glob("ws_*.json"))]
+    for record in records:
+        record["root"] = relocate(record["root"])
     return records if include_removed else [record for record in records if not record.get("removed", False)]
 
 

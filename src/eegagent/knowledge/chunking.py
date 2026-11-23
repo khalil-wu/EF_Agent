@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import unquote
 
+from eegagent.core.relocate import relocate_suffix
+
 from .tokenize import tokenize
 
 MAX_CHUNK_CHARS = 1800
@@ -96,7 +98,7 @@ class Chunk:
                 source_sha = self.source_info["sha256"]
                 source_format = self.source_info["format"]
                 source_file = directory / f"{source_sha}.{source_format}"
-                if not source_file.exists():
+                if not source_file.exists() and Path(self.source_info["path"]).exists():
                     shutil.copyfile(self.source_info["path"], source_file)
                 r.update(source_document_sha256=source_sha, source_document_name=self.source_info["name"],
                          source_original_url=f"/knowledge/documents/{source_sha}/file?format={source_format}",
@@ -163,7 +165,7 @@ def markdown_sections(text: str, levels=(2,)) -> list[str]:
     return sections
 
 
-def chunk_markdown(path: Path, doc_type: str = "note") -> list[Chunk]:
+def chunk_markdown(path: Path, doc_type: str = "note", root: Path | None = None) -> list[Chunk]:
     document_text = path.read_text(encoding="utf-8")
     document_sha256 = hashlib.sha256(document_text.encode("utf-8")).hexdigest()
     meta, body = split_frontmatter(document_text)
@@ -176,6 +178,10 @@ def chunk_markdown(path: Path, doc_type: str = "note") -> list[Chunk]:
     ctx: dict = {}
     source_side = path.with_suffix(".source.json")
     source_info = json.loads(source_side.read_text(encoding="utf-8")) if source_side.exists() else {}
+    if source_info.get("path") and not Path(source_info["path"]).exists():
+        moved = relocate_suffix(source_info["path"], root or path.parent)
+        if moved is not None:
+            source_info["path"] = moved
     side = path.with_suffix(".ctx.json")
     if side.exists():
         try:
@@ -225,5 +231,5 @@ def load_all_chunks(root: Path | None = None) -> list[Chunk]:
         if rel and rel[0] in ("graph",):
             continue
         doc_type = "paper" if (rel and rel[0] == "papers") else "note"
-        out.extend(chunk_markdown(path, doc_type))
+        out.extend(chunk_markdown(path, doc_type, root))
     return out

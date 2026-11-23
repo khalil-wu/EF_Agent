@@ -82,7 +82,7 @@ func (s *Server) resolveAttachment(r *http.Request) (*attachmentView, error) {
 		}
 	}
 	base, _ := filepath.Abs(filepath.Join(s.StorageDir, "uploads"))
-	path, _ := filepath.Abs(manifest.SourcePath)
+	path, _ := filepath.Abs(contracts.RelocateStoragePath(s.StorageDir, manifest.SourcePath))
 	rel, err := filepath.Rel(base, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		if snapshot.WorkspaceID == "" {
@@ -98,7 +98,7 @@ func (s *Server) resolveAttachment(r *http.Request) (*attachmentView, error) {
 		if err := json.Unmarshal(body, &workspace); err != nil {
 			return nil, err
 		}
-		rel, err = filepath.Rel(workspace.Root, path)
+		rel, err = filepath.Rel(contracts.RelocateStoragePath(s.StorageDir, workspace.Root), path)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return nil, fmt.Errorf("文件不在当前工作区中")
 		}

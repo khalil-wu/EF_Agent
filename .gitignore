@@ -4,6 +4,7 @@
 .env.*
 !.env.example
 *.local.ps1
+*.local.sh
 *.local.yaml
 *.local.yml
 *.local.css

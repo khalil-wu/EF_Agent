@@ -47,7 +47,7 @@ def style(profile="screen"):
     from matplotlib import cycler, font_manager
 
     installed = {font.name for font in font_manager.fontManager.ttflist}
-    fonts = [name for name in ("Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "SimHei", "Arial", "Liberation Sans", "DejaVu Sans")
+    fonts = [name for name in ("Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "SimHei", "Hiragino Sans GB", "Heiti SC", "Arial Unicode MS", "PingFang SC", "Arial", "Liberation Sans", "DejaVu Sans")
              if name in installed]
     sizes = FONT_SIZES[profile]
     plt.rcParams.update({

@@ -142,7 +142,7 @@ func serialize(msgs []llm.Message) string {
 		case "tool":
 			c := m.Content
 			if len(c) > toolResultMaxChars {
-				c = c[:toolResultMaxChars] + fmt.Sprintf("\n[... %d more characters truncated]", len(m.Content)-toolResultMaxChars)
+				c = strings.ToValidUTF8(c[:toolResultMaxChars], "") + fmt.Sprintf("\n[... %d more characters truncated]", len(m.Content)-toolResultMaxChars)
 			}
 			b.WriteString("[Tool result " + m.Name + "]: " + c + "\n\n")
 		}

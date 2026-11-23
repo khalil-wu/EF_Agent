@@ -106,7 +106,7 @@ func LoadProjectContext(dirs []string) []ContextFile {
 			}
 			seen[abs] = true
 			if len(b) > 24*1024 {
-				b = append(b[:24*1024], []byte("\n…（已截断）")...)
+				b = append([]byte(strings.ToValidUTF8(string(b[:24*1024]), "")), []byte("\n…（已截断）")...)
 			}
 			out = append(out, ContextFile{Path: filepath.ToSlash(abs), Content: strings.TrimSpace(string(b))})
 			break
@@ -497,6 +497,7 @@ func WorkspaceContext(storage, id string) string {
 	if err := json.Unmarshal(body, &record); err != nil {
 		return fmt.Sprintf("<workspace_context id=%q>\n工作区记录解析失败：%s\n</workspace_context>", id, err)
 	}
+	record.Root = contracts.RelocateStoragePath(storage, record.Root)
 	excluded, _ := json.Marshal(record.Excluded)
 	var b strings.Builder
 	fmt.Fprintf(&b, "<workspace_context id=%q>\n当前本地工作区：%s\nroot=%s\n排除分析的相对路径：%s\nlist_files 自动采用当前目录和排除清单，按分页覆盖目标范围。文件工具的 path 相对于本工作区。run_python 的工作目录是会话 scratch，工作区读写通过 eeg.call 使用文件工具。原文件留在本地，远程模型的数据上传发生在实际推理调用时。\n", id, record.Name, record.Root, excluded)
@@ -509,6 +510,9 @@ func WorkspaceContext(storage, id string) string {
 		if err != nil {
 			fmt.Fprintf(&b, "工作区协议读取失败：%s：%v\n", filepath.ToSlash(path), err)
 			break
+		}
+		if len(instructions) > 24*1024 {
+			instructions = []byte(strings.ToValidUTF8(string(instructions[:24*1024]), "") + "\n…（已截断）")
 		}
 		fmt.Fprintf(&b, "<workspace_instructions path=%q>\n当前数据工作区的业务协议，适用于本工作区的采集事实、分析要求和输出约定；用户本次明确要求优先。\n%s\n</workspace_instructions>\n", filepath.ToSlash(path), strings.TrimSpace(string(instructions)))
 		break

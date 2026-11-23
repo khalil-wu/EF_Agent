@@ -21,12 +21,17 @@
 | `EFAGENT_LLM_CAPABILITIES` | 对话模型能力文件，默认 `configs/conversation_models.json` |
 | `EFAGENT_PYTHON` | worker 解释器，默认 `.venv/Scripts/python.exe` |
 | `EFAGENT_LOCAL_FONTS` | 本机字体 CSS；同目录 `fonts/` 随静态资源发布，字体不进入 Git |
+| `EFAGENT_RUN_TIMEOUT_MINUTES` | 单轮分析运行上限（分钟），默认 30 |
 
 设置好环境变量后运行 `& .\scripts\start.ps1`，在后台启动两个进程并打开网页。`-NoBrowser` 仅启动服务。相同构建和配置复用进程；变化后只重启受影响的组件，网关会按源码增量构建。存在运行中的分析时保留原进程，分析结束后再次运行命令更新。两个进程继承同一组配置，启动日志位于 `storage/logs/`。
 
 `/health` 提供应用、组件、构建、配置标识、源码目录、数据目录与 PID。端口被另一实例占用时，启动器会指出冲突；使用该实例的配置或选择其他端口。迁移旧版服务时，在 `/sessions` 全部 `running=false` 后停止旧网关和 worker，再运行新启动器。
 
 代码与本机数据统一放在一个 EFAgent 目录。启动脚本自动加载 `scripts/settings.local.ps1`，其中指定数据、私有知识库、模型登记与字体路径。从 EEGAgent 目录迁移时可为旧路径创建目录联接，保留历史会话中的文件引用。EFAgent 与 EEGAgent 是同一项目。
+
+### macOS / Linux
+
+`scripts/start.sh` 与 PowerShell 启动器等价：`./scripts/start.sh`（可选 `start`/`stop`/`status` 与 `--no-browser`、`--config <file>`）自动加载 `scripts/settings.local.sh`（参考 `settings.local.sh.example`），按需构建前端与网关后拉起 worker 和网关，日志与 PID 位于 `storage/logs/`。默认 Python 为 `.venv-macos/bin/python`，缺失时退回 `.venv/bin/python`。
 
 ## 图片问答
 
@@ -38,7 +43,7 @@
 
 ## 工作区与资料
 
-在网页上传文件，或挂接数据文件夹。将采集事实、视频配对与交付约定写入工作区根目录的 `EFAGENT.md`；兼容原有 `EEGAGENT.md` 和 `AGENTS.md`，按上述顺序选取。
+在网页上传文件，或挂接数据文件夹。将采集事实、视频配对与交付约定写入工作区根目录的 `EFAGENT.md`；兼容原有 `EEGAGENT.md` 和 `AGENTS.md`，按上述顺序选取。其他机器或旧路径下生成的存储记录在读取时自动对应当前存储目录；文件夹位于存储目录之外的工作区需重新挂接。
 
 仓库附带领域知识笔记和图谱。论文全文、下载缓存和用户文档保存在本地；可上传 PDF、Markdown 或文本供当前会话检索。项目资料的批量导入可使用：
 
@@ -80,5 +85,15 @@ EDF 导出保留可精确表示的采样时钟与样本数；需要补齐记录�
 cd gateway
 go test ./...
 ```
+
+macOS / Linux 下的等价命令：
+
+```bash
+cd gateway && go vet ./... && go test ./...
+env -u PYTHONSTARTUP .venv-macos/bin/python -m pytest tests -q --no-header -p no:cacheprovider
+cd frontend && npm run check && npm test && npm run build
+```
+
+`gateway/internal/server/static/` 下的 `app.js`、`app.css`、`index.html`、`transcript-ui.js` 是 `npm run build` 的发布产物，修改 `frontend/src` 与 `frontend/bridge` 后统一构建。仓库根目录的 `EFAGENT.md` / `EEGAGENT.md` / `AGENTS.md` 会作为应用级约定进入对话模型的系统提示，开发说明不要放在这些文件里。
 
 前端检查与构建命令见根 README。图标与字体采用本地图标子集和系统字体，界面运行无需字体 CDN。

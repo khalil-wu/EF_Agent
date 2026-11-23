@@ -429,3 +429,63 @@ test('public execution stages stay with their tool across steering and restore f
  store.hydrate({messages:[{role:'assistant',content:'',tool_calls:[{id:'remote',function:{name:'run_model',arguments:'{}'}}]},{role:'tool',tool_call_id:'remote',content:JSON.stringify({status:'ok',execution_progress:[{stage:'inference',label:'推理中',detail:'EEG'}]})}]});
  assert.equal((entry(store,'remote') as any).progress[0].label,'推理中');
 });
+
+test('streaming deltas update the snapshot immediately but coalesce listener notifications through the scheduler',()=>{
+  const scheduled:(()=>void)[]=[],store=createTranscriptStore({schedule:flush=>scheduled.push(flush)});
+  let calls=0;store.subscribe(()=>calls++);
+  store.addUser({text:'解释频谱。'});
+  store.addTurn('active');
+  store.apply({type:'message_started',message_id:'msg_coalesced'});
+  calls=0;
+  replay(store,[
+    {type:'message_delta',message_id:'msg_coalesced',text:'第一'},
+    {type:'message_delta',message_id:'msg_coalesced',text:'第二'},
+    {type:'message_delta',message_id:'msg_coalesced',text:'第三'},
+  ]);
+  assert.equal(calls,0,'high-frequency deltas do not notify synchronously');
+  assert.equal((entry(store,'msg_coalesced') as Message).text,'第一第二第三','every delta still lands in the snapshot');
+  assert.equal(scheduled.length,1,'pending deltas share one scheduled flush');
+  scheduled[0]();
+  assert.equal(calls,1);
+  store.apply({type:'message_completed',message_id:'msg_coalesced',phase:'final_answer'});
+  assert.equal(calls,2,'non-deferred events still notify immediately');
+  scheduled[0]();
+  assert.equal(calls,2,'a stale queued flush does not notify again');
+});
+
+test('live artifact events prefer the tool call over the gateway message id so read_artifact stays suppressed',()=>{
+  const store=createTranscriptStore();
+  store.addUser({text:'绘制功率谱'});
+  replay(store,[
+    {type:'message_started',message_id:'msg_first'},
+    {type:'tool_execution_start',tool_call_id:'make',tool_name:'plot',args:{},message_id:'msg_first'},
+    {type:'artifact_ready',tool_call_id:'make',tool_name:'plot',message_id:'msg_first',result:{artifact_id:'art_old'}},
+    {type:'session_saved'},
+  ]);
+  store.addUser({text:'读取此前结果'});
+  replay(store,[
+    {type:'message_started',message_id:'msg_second'},
+    {type:'tool_execution_start',tool_call_id:'read',tool_name:'read_artifact',args:{artifact_id:'art_old'},message_id:'msg_second'},
+    {type:'artifact_ready',tool_call_id:'read',tool_name:'read_artifact',message_id:'msg_second',result:{artifact_id:'art_old'}},
+    {type:'artifact_ready',tool_call_id:'read',tool_name:'read_artifact',message_id:'msg_second',result:{artifact_id:'art_before_history'}},
+    {type:'session_saved'},
+  ]);
+  assert.deepEqual(turns(store).map(row=>row.artifacts),[['art_old'],[]],'read_artifact must not surface a re-read artifact as a new output');
+});
+
+test('unknown stream ids extend or skip instead of throwing, and unreadable tool history hydrates as an error',()=>{
+  const store=createTranscriptStore();
+  store.addUser({text:'继续分析'});
+  store.apply({type:'message_delta',message_id:'never-started',text:'前半句'});
+  assert.equal((entry(store,'never-started') as Message).text,'前半句');
+  assert.equal((entry(store,'never-started') as Message).phase,'pending');
+  store.apply({type:'message_delta',message_id:'never-started',text:'+后半句'});
+  assert.equal((entry(store,'never-started') as Message).text,'前半句+后半句');
+  store.apply({type:'tool_execution_progress',tool_call_id:'unknown-tool',result:{stage:'s',label:'阶段',detail:''}});
+  store.apply({type:'reasoning_delta',message_id:'also-missing',text:'思考',ts:new Date().toISOString()});
+  store.hydrate({messages:[
+    {role:'assistant',tool_calls:[{id:'call_bad',function:{name:'run_python',arguments:'{}'}}]},
+    {role:'tool',tool_call_id:'call_bad',content:'not json'},
+  ],running:false});
+  assert.equal((entry(store,'call_bad') as Tool).status,'error');
+});

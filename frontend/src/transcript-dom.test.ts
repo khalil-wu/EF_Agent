@@ -198,3 +198,27 @@ test('expanding one running tool shows its name and current stage once with one 
   assert.equal((text.match(/计算逐窗特征/g)||[]).length,1);
   assert.equal(document.querySelectorAll('.operation-group.active,.step.run,.remote-stage.active').length,1);
 });
+
+test('a streaming delta re-renders only its own turn, leaving completed turns untouched',()=>{
+  const dom=new JSDOM('<div id="chat"></div>',{url:'http://localhost/'});
+  Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement});
+  (globalThis as any).IconSystem=createRequire(import.meta.url)('../../gateway/internal/server/static/icons.js');
+  const calls:string[]=[];
+  const options:Options={session:()=> 'session',source:()=>null,artifact:()=>null,sourceTitle:()=>'',sourceLocation:()=>'',references:text=>{calls.push(text);return []},artifactTitle:()=>'',toolLabel:name=>name,formatArgs:()=>'',toolSummary:()=>'',toolVisible:()=>true,openResults(){},openArtifact(){},openAttachment(){},openReference(){},openTrace(){},copy(){},retry(){},changed(){}};
+  let store:ReturnType<typeof mount>;
+  flushSync(()=>{store=mount(document.querySelector('#chat')!,options)});
+  flushSync(()=>store.hydrate({messages:[
+    {role:'user',content:'第一个问题'},
+    {role:'assistant',message_id:'m_first',content:'第一轮答案独有内容'},
+    {role:'user',content:'第二个问题'},
+    {role:'assistant',message_id:'m_second',content:'第二轮答案独有内容'},
+  ],running:false}));
+  assert.equal(document.querySelectorAll('article.msg.agent').length,2);
+  flushSync(()=>{store.addUser({text:'第三个问题'});store.addTurn('live');store.apply({type:'message_started',message_id:'msg_live'})});
+  flushSync(()=>store.apply({type:'message_delta',message_id:'msg_live',text:'首段流式文本'}));
+  calls.length=0;
+  flushSync(()=>store.apply({type:'message_delta',message_id:'msg_live',text:'新的流式文本'}));
+  assert.equal(calls.some(text=>text.includes('第一轮答案')||text.includes('第二轮答案')),false,'older turns must not re-render on a delta');
+  assert.match(document.querySelector('[data-message-id="msg_live"]')!.textContent!,/新的流式文本/);
+  dom.window.close();
+});

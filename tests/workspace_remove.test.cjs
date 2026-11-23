@@ -78,6 +78,26 @@ test('a failed removal keeps the current workspace and draft references',async()
   assert.deepEqual(f.cleared,[]);assert.deepEqual(f.notices,[]);
 });
 
+test('a workspace whose folder is not on this machine renders unavailable and cannot create a conversation',()=>{
+  const f=fixture();f.runtime.workspaceCatalog[0].available=false;f.runtime.renderSessionList();
+  const group=f.document.querySelector('.workspace-group');
+  assert.equal(group.classList.contains('unavailable'),true);
+  const create=group.querySelector('.workspace-new');
+  assert.equal(create.disabled,true);
+  assert.equal(create.title,'文件夹不在本机，请重新挂接后再新建对话');
+  assert.equal(group.querySelector('.workspace-folder-label').title,record.root+' · 文件夹不在本机，请重新挂接');
+});
+
+test('a workspace with an available folder keeps the enabled create button',()=>{
+  const f=fixture();f.runtime.workspaceCatalog[0].available=true;f.runtime.renderSessionList();
+  const group=f.document.querySelector('.workspace-group');
+  assert.equal(group.classList.contains('unavailable'),false);
+  const create=group.querySelector('.workspace-new');
+  assert.equal(create.disabled,false);
+  assert.equal(create.title,'在'+record.name+'中新建对话');
+  assert.equal(group.querySelector('.workspace-folder-label').title,record.root);
+});
+
 test('workspace removal is unavailable while one of its conversations is running',()=>{
   const f=fixture();f.runtime.sessionsCache[0].running=true;f.runtime.renderSessionList();
   f.document.querySelector('.workspace-folder').dispatchEvent(new f.document.defaultView.KeyboardEvent('keydown',{key:'F10',shiftKey:true,cancelable:true}));

@@ -53,7 +53,10 @@ class WorkspaceMount(BaseModel):
 
 @app.get("/workspaces")
 def workspace_catalog():
-    return workspaces.list_workspaces()
+    records = workspaces.list_workspaces()
+    for record in records:
+        record["available"] = Path(record["root"]).is_dir()
+    return records
 
 
 @app.post("/workspaces")

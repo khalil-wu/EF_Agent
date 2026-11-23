@@ -21,34 +21,34 @@ import (
 var idRe = regexp.MustCompile(`^ses_[0-9a-f]{6,}$`)
 
 type Snapshot struct {
-	ID               string                     `json:"session_id"`
-	Title            string                     `json:"title"`
-	ParentSessionID  string                     `json:"parent_session_id,omitempty"`
-	DeletedAt        *time.Time                 `json:"deleted_at,omitempty"`
+	ID                string                     `json:"session_id"`
+	Title             string                     `json:"title"`
+	ParentSessionID   string                     `json:"parent_session_id,omitempty"`
+	DeletedAt         *time.Time                 `json:"deleted_at,omitempty"`
 	Mode              contracts.PermissionMode   `json:"mode"`
 	LLMModel          string                     `json:"llm_model,omitempty"`
 	VisionModel       string                     `json:"vision_model,omitempty"`
 	ImageObservations map[string]string          `json:"image_observations,omitempty"`
 	WorkspaceID       string                     `json:"workspace_id,omitempty"`
-	ActiveSkill      string                     `json:"active_skill"`
-	Messages         []llm.Message              `json:"messages"`
-	ArchivedMessages []llm.Message              `json:"archived_messages,omitempty"`
-	Manifests        []*contracts.Manifest      `json:"manifests"`
-	StagedManifests  []*contracts.Manifest      `json:"staged_manifests,omitempty"`
-	Previews         map[string]json.RawMessage `json:"previews,omitempty"`
-	Knowledge        []json.RawMessage          `json:"knowledge,omitempty"`
-	Sources          map[string]json.RawMessage `json:"sources,omitempty"`
-	KnowledgeFacts   []json.RawMessage          `json:"knowledge_facts,omitempty"`
-	Artifacts        []json.RawMessage          `json:"artifacts"`
-	ScratchFiles     []string                   `json:"scratch_files,omitempty"`
-	Summaries        []string                   `json:"summaries"`
-	Usage            []agent.TurnUsage          `json:"usage,omitempty"`
-	CreatedAt        time.Time                  `json:"created_at"`
-	UpdatedAt        time.Time                  `json:"updated_at"`
-	LastError        string                     `json:"last_error,omitempty"`
-	LastStopped      bool                       `json:"last_stopped,omitempty"`
-	PendingInput     *agent.InputRequest        `json:"pending_input,omitempty"`
-	Running          bool                       `json:"running,omitempty"`
+	ActiveSkill       string                     `json:"active_skill"`
+	Messages          []llm.Message              `json:"messages"`
+	ArchivedMessages  []llm.Message              `json:"archived_messages,omitempty"`
+	Manifests         []*contracts.Manifest      `json:"manifests"`
+	StagedManifests   []*contracts.Manifest      `json:"staged_manifests,omitempty"`
+	Previews          map[string]json.RawMessage `json:"previews,omitempty"`
+	Knowledge         []json.RawMessage          `json:"knowledge,omitempty"`
+	Sources           map[string]json.RawMessage `json:"sources,omitempty"`
+	KnowledgeFacts    []json.RawMessage          `json:"knowledge_facts,omitempty"`
+	Artifacts         []json.RawMessage          `json:"artifacts"`
+	ScratchFiles      []string                   `json:"scratch_files,omitempty"`
+	Summaries         []string                   `json:"summaries"`
+	Usage             []agent.TurnUsage          `json:"usage,omitempty"`
+	CreatedAt         time.Time                  `json:"created_at"`
+	UpdatedAt         time.Time                  `json:"updated_at"`
+	LastError         string                     `json:"last_error,omitempty"`
+	LastStopped       bool                       `json:"last_stopped,omitempty"`
+	PendingInput      *agent.InputRequest        `json:"pending_input,omitempty"`
+	Running           bool                       `json:"running,omitempty"`
 }
 
 type Meta struct {
@@ -132,6 +132,13 @@ func Load(storage, id string, sk []*skills.Skill) (*agent.Session, error) {
 	var snap Snapshot
 	if err := json.Unmarshal(b, &snap); err != nil {
 		return nil, err
+	}
+	for _, m := range append(snap.Manifests, snap.StagedManifests...) {
+		m.SourcePath = contracts.RelocateStoragePath(storage, m.SourcePath)
+		m.VisionPath = contracts.RelocateStoragePath(storage, m.VisionPath)
+		for i, path := range m.SourceFiles {
+			m.SourceFiles[i] = contracts.RelocateStoragePath(storage, path)
+		}
 	}
 	s := &agent.Session{ID: snap.ID, Title: snap.Title, Mode: snap.Mode, Messages: snap.Messages, Manifests: snap.Manifests,
 		Artifacts: snap.Artifacts, ScratchFiles: snap.ScratchFiles, Summaries: snap.Summaries, Usage: snap.Usage, CreatedAt: snap.CreatedAt, UpdatedAt: snap.UpdatedAt}

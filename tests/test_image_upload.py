@@ -61,3 +61,20 @@ def test_image_extension_does_not_turn_invalid_bytes_into_a_picture(uploads):
     path.write_text("This is not an image", encoding="utf-8")
     with pytest.raises(OSError):
         attachments.register_upload(str(path))
+
+
+def test_oversized_image_is_downscaled_for_the_vision_path_but_reported_at_full_size(uploads):
+    path = uploads / "大图.png"
+    Image.new("RGB", (4000, 3000), "red").save(path)
+    manifest = attachments.register_upload(str(path))["manifest"]
+    assert (manifest["width"], manifest["height"]) == (4000, 3000)
+    assert manifest["vision_path"] != str(path)
+    with Image.open(manifest["vision_path"]) as scaled:
+        assert scaled.format == "PNG" and max(scaled.size) == 2048
+
+
+def test_small_image_keeps_the_source_as_vision_path(uploads):
+    path = uploads / "小图.png"
+    Image.new("RGB", (800, 600), "blue").save(path)
+    manifest = attachments.register_upload(str(path))["manifest"]
+    assert manifest["vision_path"] == str(path)

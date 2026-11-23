@@ -18,6 +18,7 @@ from eegagent.knowledge.documents import committed_documents, document_dir, docu
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv"}
 DOCUMENT_EXTS = {".pdf", ".md", ".markdown", ".docx", ".json", ".yaml", ".yml", ".rst"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
+VISION_MAX_SIDE = 2048
 UNSUPPORTED_HINTS = {".xlsx": "Excel 表格请另存为 CSV 后上传", ".xls": "Excel 表格请另存为 CSV 后上传",
                      ".doc": "旧版 Word 文档请另存为 .docx 或 PDF 后上传"}
 
@@ -35,11 +36,16 @@ def _image_metadata(path: Path, digest: str) -> dict:
         oriented = ImageOps.exif_transpose(image)
         vision_path = path
         media_type = Image.MIME[image.format]
-        if image.format not in {"PNG", "JPEG", "WEBP"} or image.getexif().get(274, 1) != 1:
+        oversized = max(oriented.size) > VISION_MAX_SIDE
+        if image.format not in {"PNG", "JPEG", "WEBP"} or image.getexif().get(274, 1) != 1 or oversized:
             directory = ensure_layout() / "uploads" / "image_inputs"
             directory.mkdir(exist_ok=True)
             vision_path = directory / f"{digest}.png"
-            oriented.convert("RGBA" if "A" in oriented.getbands() or "transparency" in oriented.info else "RGB").save(vision_path, format="PNG")
+            raster = oriented
+            if oversized:
+                raster = oriented.copy()
+                raster.thumbnail((VISION_MAX_SIDE, VISION_MAX_SIDE), Image.LANCZOS)
+            raster.convert("RGBA" if "A" in raster.getbands() or "transparency" in raster.info else "RGB").save(vision_path, format="PNG")
             media_type = "image/png"
         return {"width": oriented.width, "height": oriented.height, "media_type": media_type,
                 "vision_path": str(vision_path), "frame_count": getattr(image, "n_frames", 1)}

@@ -1,0 +1,16 @@
+# EFAgent 本机配置示例：复制为 scripts/settings.local.sh 后按需取消注释。
+# EFAGENT_* 会被启动脚本映射为部件实际读取的 EEGAGENT_*。
+
+# 对话模型（必填）
+# export EFAGENT_LLM_BASE_URL="https://api.example.com/v1"
+# export EFAGENT_LLM_MODEL="your-model-name"
+# export EFAGENT_LLM_API_KEY="sk-..."
+
+# 数据目录（分号分隔多个路径）
+# export EFAGENT_DATA_DIRS="/path/to/data"
+
+# 模型注册表
+# export EFAGENT_MODEL_REGISTRY="/path/to/model_registry.yaml"
+
+# 单轮分析运行上限（分钟，默认 30）
+# export EFAGENT_RUN_TIMEOUT_MINUTES="60"

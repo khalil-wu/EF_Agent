@@ -57,6 +57,7 @@ type Server struct {
 	BuildID           string
 	SourceRoot        string
 	ConfigID          string
+	RunTimeout        time.Duration
 	mu                sync.Mutex
 	sessions          map[string]*agent.Session
 	views             map[string]json.RawMessage // immutable UI snapshots, published by the session writer
@@ -290,7 +291,7 @@ func (s *Server) publishLocked(ses *agent.Session) {
 		"vision_model":           ses.VisionModel,
 		"effective_vision_model": s.effectiveVisionModel(ses),
 		"workspace_id":           ses.WorkspaceID,
-		"last_error": ses.LastError, "last_stopped": ses.LastStopped, "parent_session_id": ses.ParentSessionID, "deleted_at": ses.DeletedAt, "created_at": ses.CreatedAt, "updated_at": ses.UpdatedAt})
+		"last_error":             ses.LastError, "last_stopped": ses.LastStopped, "parent_session_id": ses.ParentSessionID, "deleted_at": ses.DeletedAt, "created_at": ses.CreatedAt, "updated_at": ses.UpdatedAt})
 	if err != nil {
 		panic(err)
 	}
@@ -730,7 +731,11 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	timeout := s.RunTimeout
+	if timeout <= 0 {
+		timeout = 30 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	stopCtx, stop := context.WithCancel(ctx)
 	s.cancels[ses.ID] = stop
 	s.live[ses.ID] = &liveRun{id: newID("run"), startedAt: time.Now(), changed: make(chan struct{})}
@@ -796,6 +801,8 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case stopCtx.Err() == context.Canceled && ctx.Err() == nil:
 				emit(agent.Event{Type: "stopped", Timestamp: time.Now()})
+			case ctx.Err() == context.DeadlineExceeded:
+				emit(agent.Event{Type: "error", Timestamp: time.Now(), Text: fmt.Sprintf("本轮分析超过 %d 分钟的运行上限，已停止。已完成的结果已保留，可点击重试继续；上限可通过 EFAGENT_RUN_TIMEOUT_MINUTES 调整。", max(1, int(timeout.Minutes())))})
 			case !sentError: // the loop already reported stream errors; don't show them twice
 				emit(agent.Event{Type: "error", Timestamp: time.Now(), Text: runErr.Error()})
 			}
@@ -826,7 +833,7 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 // withStop hides the loop's own error event when the user pressed stop; the caller reports "stopped".
 func withStop(ctx context.Context, emit func(agent.Event)) func(agent.Event) {
 	return func(ev agent.Event) {
-		if ev.Type == "error" && ctx.Err() == context.Canceled {
+		if ev.Type == "error" && ctx.Err() != nil {
 			return
 		}
 		emit(ev)

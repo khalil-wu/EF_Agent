@@ -543,3 +543,43 @@ test('report download paths keep readable labels and never rewrite IDs inside Ma
  assert.match(html,/data-art="art_123456">数据表/);
  assert.doesNotMatch(html,/\[审阅记录\]|\/artifacts\/查看产物/);
 });
+
+test('a second send keeps earlier tool traces so their execution details still open',async()=>{
+ const {runtime:r,element,messages}=attachmentRuntime();
+ const kept={className:'ev ok'};r.eventTraces.set('first-tool',kept);
+ element('#input').value='继续分析';await r.send();
+ assert.equal(messages.length,1);
+ assert.equal(r.eventTraces.get('first-tool'),kept,'a new message must not clear older execution details');
+});
+
+test('a failed event projection does not abort the live stream',async()=>{
+ const calls=[],errors=[],events=[{type:'tool_execution_progress',tool_call_id:'gone',result:{label:'阶段'}},{type:'session_saved'}];
+ const encoder=new TextEncoder();let index=0;
+ const reader={cancelled:false,async read(){return index<events.length?{done:false,value:encoder.encode('data: '+JSON.stringify(events[index++])+'\n\n')}:{done:true}},async cancel(){this.cancelled=true}};
+ const runtime={viewVersion:0,TextDecoder,console:{error:(...args)=>errors.push(args)},
+  consumeEngineEvent(event){calls.push(event.type);if(event.type==='tool_execution_progress')throw new Error('missing trace')}};
+ vm.runInNewContext(source.slice(source.indexOf('async function consumeEventStream('),source.indexOf('async function watchSession(')),runtime);
+ await runtime.consumeEventStream({body:{getReader:()=>reader}},0);
+ assert.deepEqual(calls,['tool_execution_progress','session_saved']);
+ assert.equal(errors.length,1);
+ assert.equal(reader.cancelled,true);
+});
+
+test('large table previews stream a bounded prefix instead of downloading the whole artifact',async()=>{
+ const csv='a,b\n'+'1,2\n'.repeat(250000),encoder=new TextEncoder();
+ const chunks=[csv.slice(0,300000),csv.slice(300000,600000),csv.slice(600000)];
+ let reads=0,cancelled=false;const container={innerHTML:''};
+ const runtime={fetch:async()=>({ok:true,body:{getReader(){return {async read(){reads++;return chunks.length?{done:false,value:encoder.encode(chunks.shift())}:{done:true}},async cancel(){cancelled=true}}}}}),TextDecoder,esc:context.esc};
+ vm.runInNewContext(source.slice(source.indexOf('function parseDelimitedPreview('),source.indexOf('async function saveArtifactToWorkspace(')),runtime);
+ await runtime.loadTablePreview({artifact_id:'art_big',summary:{format:'csv'}},container);
+ assert.equal(reads,2,'the third chunk is never downloaded');
+ assert.equal(cancelled,true);
+ assert.match(container.innerHTML,/至少/);
+});
+
+test('report markdown renders deep headings and horizontal rules',()=>{
+ const html=context.md('#### 四级\n\n---\n\n正文');
+ assert.match(html,/<h4>四级<\/h4>/);
+ assert.match(html,/<hr>/);
+ assert.match(html,/<p>正文<\/p>/);
+});

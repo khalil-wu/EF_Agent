@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 
-from eegagent.worker.store import ensure_layout, load_artifact, resolve_inside_storage, storage_dir
+from eegagent.worker.store import ensure_layout, load_artifact, relocate_record, resolve_inside_storage, storage_dir
 from eegagent.worker.readers import MNE_EXTS, NATIVE_EXTS, file_ext, resolve_main_file
 
 EEG_EXTS = MNE_EXTS | NATIVE_EXTS
@@ -61,6 +61,7 @@ def session_files(session_id: str) -> tuple[dict, list[Path]]:
     paths, seen = [], set()
     records = [*session.get("manifests", []), *session.get("artifacts", [])]
     for record in records:
+        relocate_record(record)
         identifier = record.get("manifest_id") or record["artifact_id"]
         if identifier in seen:
             continue

@@ -236,7 +236,7 @@ eeg.save_table([{{"channel": channels[0], "samples": 128}}], name="coverage",
     assert artifact["summary"]["available_formats"] == ["png", "svg", "pdf"]
     assert artifact["summary"]["title"] == "首通道采样波形"
     assert "采样点" in artifact["summary"]["description"]
-    assert any(font in result["stdout"] for font in ("Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "SimHei"))
+    assert any(font in result["stdout"] for font in ("Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "SimHei", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Arial Unicode MS"))
     assert result["artifacts"][1]["summary"]["title"] == "首通道波形"
     assert result["artifacts"][1]["summary"]["description"] == "展示首个通道前 128 个采样点的振幅变化。"
     table = result["artifacts"][2]

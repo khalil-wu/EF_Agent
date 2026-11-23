@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"eegagent/gateway/internal/llm"
 )
@@ -143,5 +144,12 @@ func TestSteeringInjectedAfterToolBatch(t *testing.T) {
 	// transcript: user, assistant(tool), tool, user(steer), assistant
 	if s.Messages[3].Role != "user" || !strings.Contains(s.Messages[3].Content, "<file_references>") || s.Messages[3].Presentation != presentation {
 		t.Fatalf("steer message misplaced: %+v", s.Messages)
+	}
+}
+
+func TestSerializeTruncatesLongToolResultsWithoutBreakingUTF8(t *testing.T) {
+	out := serialize([]llm.Message{{Role: "tool", Name: "run_python", Content: strings.Repeat("分", toolResultMaxChars+10)}})
+	if !utf8.ValidString(out) {
+		t.Fatal("truncated tool result is not valid UTF-8")
 	}
 }

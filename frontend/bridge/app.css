@@ -90,6 +90,7 @@ a{color:var(--md-primary)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes pop-in{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes pop-down{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+::view-transition-old(root),::view-transition-new(root){animation-duration:var(--d-m)}
 @keyframes sheet-in{from{opacity:0;transform:translateY(18px) scale(.95)}to{opacity:1;transform:none}}
 @keyframes zoom-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 @keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
@@ -177,6 +178,8 @@ main.scrolled .appbar{border-bottom-color:var(--hairline)}
 .md p{margin:0 0 14px}
 .md h1,.md h2,.md h3{margin:28px 0 10px;font-weight:600;letter-spacing:-.012em;line-height:1.4}
 .md h1{font-size:1.375rem}.md h2{font-size:1.1875rem}.md h3{font-size:1.03125rem}
+.md h4,.md h5,.md h6{margin:20px 0 8px;font-weight:600;letter-spacing:-.012em;line-height:1.4}
+.md h4{font-size:.9375rem}.md h5,.md h6{font-size:.875rem}
 .md>:first-child{margin-top:0}
 .md ul,.md ol{margin:6px 0 14px;padding-left:22px}
 .md li{margin:4px 0;padding-left:2px}
@@ -891,11 +894,13 @@ body.sidebar-collapsed #drawer{visibility:hidden;opacity:0;transition:opacity va
 .workspace-folder-label>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
 .workspace-folder-label>.ms{width:16px;height:16px;color:var(--md-on-surface-variant)}
 .workspace-folder-label:hover>.ms{color:var(--md-on-surface)}
+.workspace-group.unavailable .workspace-folder-label{opacity:.55}
 .workspace-new{width:25px;height:25px;margin-right:4px;opacity:0;border-radius:var(--r-xs);transition:opacity var(--d-s) var(--ease)}
 .workspace-new .ms{width:15px;height:15px}
 .workspace-folder:hover .workspace-new,.workspace-folder:focus-within .workspace-new{opacity:1}
 .workspace-menu-note{max-width:230px;margin:4px 10px 8px;color:var(--md-on-surface-variant);font:.75rem/1.6 var(--font)}
-.workspace-chats{position:relative;padding-left:12px;animation:rise 260ms var(--ease-out)}
+.workspace-chats{position:relative;padding-left:12px}
+.workspace-chats.is-opening{animation:rise 260ms var(--ease-out)}
 .workspace-chats::before{content:"";position:absolute;left:18px;top:2px;bottom:2px;width:1px;background:var(--hairline)}
 .workspace-chats .session-open{padding-left:20px}
 .session-list-heading #sessionListTitle{flex:1}

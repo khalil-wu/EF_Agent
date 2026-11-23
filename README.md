@@ -10,7 +10,7 @@
 
 ## 启动
 
-需要 Python 3.11+、Go 1.22+ 和 PowerShell。处理视频还需要将 FFmpeg（含 `ffprobe`）加入 PATH。
+需要 Python 3.11+ 和 Go 1.22+；Windows 用 PowerShell 启动，macOS / Linux 用 bash。处理视频还需要将 FFmpeg（含 `ffprobe`）加入 PATH。
 
 ```powershell
 git clone https://github.com/khalil-wu/EF_Agent.git
@@ -34,6 +34,15 @@ $env:EFAGENT_LLM_API_KEY = "your-api-key"
 ```
 
 脚本在后台启动 worker 和网关，自动打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。相同版本和配置会复用；代码或配置变化后，只更新需要重启的组件。有分析运行时继续保留现有进程，结束后再次运行命令即可更新。数据、会话与产物保存在本地 `storage/`，启动日志位于 `storage/logs/`。
+
+macOS / Linux 使用 bash 启动器，配置写入 `scripts/settings.local.sh`（参考 `scripts/settings.local.sh.example`）：
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e ".[worker,toolbox,knowledge]"
+cp scripts/settings.local.sh.example scripts/settings.local.sh   # 填写模型地址、模型名和密钥
+./scripts/start.sh            # 启动并打开网页；stop / status 可停止或查看状态
+```
 
 发送图片时自动切换到已登记的看图模型，选择器中标有“看图”；能力配置见 `configs/conversation_models.json`。脚本自动加载 `scripts/settings.local.ps1`，也可通过 `start.ps1 -Config C:\path\settings.local.ps1` 指定本机配置。
 

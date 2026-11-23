@@ -1,4 +1,4 @@
-import React,{createContext,memo,useContext,useEffect,useLayoutEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
+import React,{createContext,memo,useCallback,useContext,useEffect,useLayoutEffect,useMemo,useRef,useState,useSyncExternalStore} from 'react';
 import {createRoot} from 'react-dom/client';
 import Markdown,{type Components} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -109,7 +109,8 @@ export const UserMessage=memo(({row,options}:{row:User;options:Options})=><>
 </>);
 
 function turnReferences(row:Turn,options:Options){const ids:string[]=[];for(const entry of row.entries)if(entry.type==='message')for(const id of options.references(entry.text))if(options.source(id)&&!ids.includes(id))ids.push(id);return new Map(ids.map((id,index)=>[id,index+1]))}
-export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metadataVersion}:{row:Turn;options:Options;toggle:()=>void;engage:()=>void;metadataVersion:number}){
+export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metadataVersion}:{row:Turn;options:Options;toggle:(id:string)=>void;engage:(id:string)=>void;metadataVersion:number}){
+  const engageTurn=useCallback(()=>engage(row.id),[engage,row.id]);
   const referenceKeys=[...turnReferences(row,options).keys()].join('|'),numbers=useMemo(()=>new Map(referenceKeys?referenceKeys.split('|').map((id,index)=>[id,index+1]):[]),[referenceKeys]),tools=row.entries.filter((entry):entry is Tool=>entry.type==='tool'&&options.toolVisible(entry.name));
   const process=row.entries.filter(entry=>entry.type==='message'?entry.phase==='commentary'&&entry.text.length>0:options.toolVisible(entry.name));
   const running=tools.filter(entry=>entry.status==='running'||entry.status==='preparing').at(-1),open=row.waiting||row.open===true;
@@ -146,9 +147,9 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
   const sourceGroups=new Map<string,{id:string;source:any;numbers:number[]}>();
   for(const [id,number] of numbers){const source=options.source(id),key=source.manifest_id||source.original_url||source.doc_id||source.title;const group=sourceGroups.get(key);if(group)group.numbers.push(number);else sourceGroups.set(key,{id,source,numbers:[number]})}
   return <article className={'msg agent'+(row.running?' is-running':'')+(showProcess?' has-process':'')} data-turn-id={row.id}><div className="bubble">
-    {showProcess&&<div className="turn-process"><button className="activity-summary" onClick={toggle} aria-label="查看处理过程" aria-expanded={open} aria-controls={'entries-'+row.id}><span>{row.running?'分析过程':processLabel}</span>{!row.running&&<Elapsed start={row.startedAt} end={row.finishedAt}/>}<span className="activity-count">{tools.length>0?`${tools.length} 步`:''}</span><Icon name={open?'expand_more':'chevron_right'}/></button></div>}
+    {showProcess&&<div className="turn-process"><button className="activity-summary" onClick={()=>toggle(row.id)} aria-label="查看处理过程" aria-expanded={open} aria-controls={'entries-'+row.id}><span>{row.running?'分析过程':processLabel}</span>{!row.running&&<Elapsed start={row.startedAt} end={row.finishedAt}/>}<span className="activity-count">{tools.length>0?`${tools.length} 步`:''}</span><Icon name={open?'expand_more':'chevron_right'}/></button></div>}
     <div id={'entries-'+row.id} className={'turn-thread transcript-entries'+(open?' process-open':'')}>
-      {groups.map(entry=>entry.type==='tools'?<div className={'process-entry tool-entry'+(row.open!==false&&(entry.tools.some(tool=>tool.status==='running'||tool.status==='preparing')||recentCompletion&&entry.id===lastGroup?.id)?' is-current':'')} key={entry.id} onPointerDown={engage} onFocusCapture={engage}><OperationGroup group={entry} options={options} engage={engage} startedAt={row.startedAt}/></div>:<div key={entry.id} className={entry.phase==='commentary'?'process-entry commentary-entry'+(row.open!==false&&commentPreview===entry.id?' is-current':''):'answer-entry'} onPointerDown={entry.phase!=='answer'?engage:undefined} onFocusCapture={entry.phase!=='answer'?engage:undefined}><StreamingText message={entry} options={options} numbers={numbers} metadataVersion={metadataVersion}/></div>)}
+      {groups.map(entry=>entry.type==='tools'?<div className={'process-entry tool-entry'+(row.open!==false&&(entry.tools.some(tool=>tool.status==='running'||tool.status==='preparing')||recentCompletion&&entry.id===lastGroup?.id)?' is-current':'')} key={entry.id} onPointerDown={engageTurn} onFocusCapture={engageTurn}><OperationGroup group={entry} options={options} engage={engageTurn} startedAt={row.startedAt}/></div>:<div key={entry.id} className={entry.phase==='commentary'?'process-entry commentary-entry'+(row.open!==false&&commentPreview===entry.id?' is-current':''):'answer-entry'} onPointerDown={entry.phase!=='answer'?engageTurn:undefined} onFocusCapture={entry.phase!=='answer'?engageTurn:undefined}><StreamingText message={entry} options={options} numbers={numbers} metadataVersion={metadataVersion}/></div>)}
     </div>
     {row.reasoning&&reasoningVisible&&<div className={'reasoning-preview'+(reasoningPhase==='fading'?' is-fading':'')} aria-label="模型思考"><span className="reasoning-label">思考</span><div className="reasoning-text" ref={reasoningText}>{row.reasoning.text}</div></div>}
     {autoPlots.length>0&&<div className={'response-gallery'+(autoPlots.length>1?' two-col':'')}>{autoPlots.map(item=><span key={item.artifact_id} className="response-figure"><button type="button" className="response-figure-open" onClick={()=>options.openArtifact(item.artifact_id)} aria-label={'查看'+options.artifactTitle(item)}><img className="report-image" src={'/artifacts/'+item.artifact_id+'/file'} alt={options.artifactTitle(item)}/></button><span className="figure-caption"><strong>{options.artifactTitle(item)}</strong>{resultDescription(item)&&<span>{resultDescription(item)}</span>}</span></span>)}</div>}
@@ -164,8 +165,8 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
 });
 
 export function mount(container:HTMLElement,options:Options){
-  const store=createTranscriptStore();
-  function Transcript(){const state=useSyncExternalStore(store.subscribe,store.getSnapshot);useEffect(options.changed,[state.contentVersion,state.metadataVersion]);return state.rows.length?<>{state.rows.map(row=>row.type==='user'?<UserMessage key={options.session()+row.id} row={row} options={options}/>:<AgentTurn key={options.session()+row.id} row={row} options={options} toggle={()=>store.toggle(row.id)} engage={()=>store.engage(row.id)} metadataVersion={state.metadataVersion}/>)}</>:<div className="empty" id="empty"><h1><svg className="hero-mark" viewBox="0 0 24 24" aria-hidden="true"><path pathLength={1} d="M2 12h3.5l2.2-6 4 13 3-9 1.8 4H22"/></svg>想分析什么？</h1></div>}
+  const store=createTranscriptStore({schedule:typeof requestAnimationFrame==='function'?(flush=>{requestAnimationFrame(flush)}):undefined});
+  function Transcript(){const state=useSyncExternalStore(store.subscribe,store.getSnapshot);useEffect(options.changed,[state.contentVersion,state.metadataVersion]);return state.rows.length?<>{state.rows.map(row=>row.type==='user'?<UserMessage key={options.session()+row.id} row={row} options={options}/>:<AgentTurn key={options.session()+row.id} row={row} options={options} toggle={store.toggle} engage={store.engage} metadataVersion={state.metadataVersion}/>)}</>:<div className="empty" id="empty"><h1><svg className="hero-mark" viewBox="0 0 24 24" aria-hidden="true"><path pathLength={1} d="M2 12h3.5l2.2-6 4 13 3-9 1.8 4H22"/></svg>想分析什么？</h1></div>}
   createRoot(container).render(<Transcript/>);
   return store;
 }

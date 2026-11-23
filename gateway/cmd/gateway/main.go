@@ -13,7 +13,8 @@
 //	EEGAGENT_STORAGE_DIR      default ../storage  (must equal the worker's storage dir)
 //	EEGAGENT_DATA_DIRS        ';'-separated data dirs (also searched for AGENTS.md / EEGAGENT.md)
 //	EEGAGENT_PROJECT_DIRS     ';'-separated dirs to search for AGENTS.md / EEGAGENT.md (default: repo root + data dirs)
-//	EEGAGENT_ADDR             default :8080
+//	EEGAGENT_ADDR             default 127.0.0.1:8080
+//	EEGAGENT_RUN_TIMEOUT_MINUTES  default 30; per-message run limit
 //	EEGAGENT_MAX_TURNS        default 32
 //	EEGAGENT_COMPACT_TOKENS   default 60000;  EEGAGENT_COMPACT_KEEP default 8
 //	EEGAGENT_ABLATION         comma list: shared_tools,focused_tools,no_skills,no_retrieval,no_requires,no_compat_context
@@ -216,12 +217,17 @@ func main() {
 	srv.ModelProxy = proxyMode
 	srv.BuildID = env("EEGAGENT_GATEWAY_BUILD_ID", env("EEGAGENT_BUILD_ID", "development"))
 	srv.ConfigID = os.Getenv("EEGAGENT_GATEWAY_CONFIG_ID")
+	if minutes := envInt("EEGAGENT_RUN_TIMEOUT_MINUTES", 30); minutes <= 0 {
+		log.Fatalf("EEGAGENT_RUN_TIMEOUT_MINUTES must be positive, got %d", minutes)
+	} else {
+		srv.RunTimeout = time.Duration(minutes) * time.Minute
+	}
 	srv.SourceRoot, _ = filepath.Abs(env("EEGAGENT_SOURCE_ROOT", ".."))
 	srv.ModelCapabilities, err = llm.LoadCapabilities(env("EEGAGENT_LLM_CAPABILITIES", filepath.Join("..", "configs", "conversation_models.json")))
 	if err != nil {
 		log.Fatalf("load conversation model capabilities: %v", err)
 	}
-	addr := env("EEGAGENT_ADDR", ":8080")
+	addr := env("EEGAGENT_ADDR", "127.0.0.1:8080")
 	displayAddr := addr
 	if strings.HasPrefix(displayAddr, ":") {
 		displayAddr = "localhost" + displayAddr

@@ -49,3 +49,14 @@ test('execution details preserve the active panel without needing a top-level tr
   assert.equal(document.querySelector('.tab.on').dataset.tab,'art');
   assert.equal(document.querySelector('#detailBack').hidden,true);
 });
+
+test('a step missing from the trace map reports instead of throwing',()=>{
+  const {document}=new JSDOM('<div class="sheet-body"><div id="noTrace"></div><div id="trace"></div></div>').window;
+  const notices=[];
+  const runtime={document,$:selector=>document.querySelector(selector),ExecutionDetails,
+    esc:value=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])),
+    manifests:[],artifacts:{},eventTraces:new Map(),showTabAndOpen(){},snack:message=>notices.push(message),toolResultSummary:()=> ''};
+  vm.runInNewContext(source.slice(source.indexOf('function traceEv('),source.indexOf('function toolResultSummary(')),runtime);
+  assert.doesNotThrow(()=>runtime.openExecutionDetails('missing'));
+  assert.deepEqual(notices,['这一步的执行详情未保留']);
+});

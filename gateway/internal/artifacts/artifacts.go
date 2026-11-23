@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"eegagent/gateway/internal/contracts"
 )
 
 var idRe = regexp.MustCompile(`^art_[0-9a-f]{6,}$`)
@@ -116,6 +118,11 @@ func Load(storageDir, id string) (*Record, error) {
 	var r Record
 	if err := json.Unmarshal(b, &r); err != nil {
 		return nil, err
+	}
+	r.URI = contracts.RelocateStoragePath(storageDir, r.URI)
+	for k, representation := range r.Representations {
+		representation.URI = contracts.RelocateStoragePath(storageDir, representation.URI)
+		r.Representations[k] = representation
 	}
 	return &r, nil
 }

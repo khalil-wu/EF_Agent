@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func saveWorkspace(t *testing.T, storage, id, root string) {
@@ -98,5 +99,17 @@ func TestWorkspaceWithoutProtocolStillHasUsableScope(t *testing.T) {
 	}
 	if broken := WorkspaceContext(storage, "ws_missing"); !strings.Contains(broken, "工作区记录读取失败") || !strings.Contains(broken, "ws_missing") {
 		t.Fatal(broken)
+	}
+}
+
+func TestWorkspaceProtocolIsCappedWithoutBreakingUTF8(t *testing.T) {
+	root, storage := t.TempDir(), t.TempDir()
+	saveWorkspace(t, storage, "ws_big", root)
+	if err := os.WriteFile(filepath.Join(root, "EFAGENT.md"), []byte(strings.Repeat("议", 40*1024)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	context := WorkspaceContext(storage, "ws_big")
+	if !strings.Contains(context, "已截断") || !utf8.ValidString(context) {
+		t.Fatal("workspace protocol was not bounded or was cut mid-rune")
 	}
 }

@@ -12,16 +12,17 @@ export type Event = {type:string;message_id?:string;tool_call_id?:string;tool_na
 export type State = {rows:Row[];metadataVersion:number;contentVersion:number};
 const phase = (value:string):Phase => ({pending:'pending',commentary:'commentary',final_answer:'answer',interrupted:'partial'} as const)[value as 'pending'] || 'answer';
 
-export function createTranscriptStore(){
-  let state:State={rows:[],metadataVersion:0,contentVersion:0},counter=0,current:string|null=null;
+export function createTranscriptStore(options:{schedule?:(flush:()=>void)=>void}={}){
+  let state:State={rows:[],metadataVersion:0,contentVersion:0},counter=0,current:string|null=null,scheduled=false;
   const listeners=new Set<()=>void>();
-  function emit(){for(const listener of listeners)listener()}
-  function update(id:string,change:(turn:Turn)=>Turn,content=true){state={...state,contentVersion:state.contentVersion+Number(content),rows:state.rows.map(row=>row.id===id?change(row as Turn):row)};emit()}
+  function flush(){if(!scheduled)return;scheduled=false;for(const listener of listeners)listener()}
+  function emit(deferred=false){if(deferred&&options.schedule){if(!scheduled){scheduled=true;options.schedule(flush)}return}scheduled=false;for(const listener of listeners)listener()}
+  function update(id:string,change:(turn:Turn)=>Turn,content=true,deferred=false){state={...state,contentVersion:state.contentVersion+Number(content),rows:state.rows.map(row=>row.id===id?change(row as Turn):row)};emit(deferred)}
   function turn(){if(!current)addTurn();return state.rows.find(row=>row.id===current) as Turn}
   function addTurn(id='turn-'+(++counter),running=true){current=id;state={...state,contentVersion:state.contentVersion+1,rows:[...state.rows.map(row=>row.type==='turn'?{...row,running:false,reasoning:undefined}:row),{type:'turn',id,entries:[],artifacts:[],running,waiting:false,stopped:false,startedAt:running?Date.now():undefined}]};emit();return id}
   function addUser(view:any,id='user-'+(++counter)){current=null;state={...state,contentVersion:state.contentVersion+1,rows:[...state.rows.map(row=>row.type==='turn'&&row.waiting?{...row,waiting:false}:row),{type:'user',id,text:view.text,attachments:view.attachments||[],references:view.references||[],questions:view.questions||[]}]};emit()}
   function owner(id:string){return state.rows.find(row=>row.type==='turn'&&row.entries.some(entry=>entry.id===id)) as Turn|undefined}
-  function message(id:string,text:string,kind:Phase,done:boolean){const active=owner(id)||turn();const existing=active.entries.find(entry=>entry.id===id);update(active.id,row=>({...row,reasoning:undefined,entries:existing?row.entries.map(entry=>entry.id===id?{...entry,text,phase:kind,done} as Message:entry):[...row.entries,{type:'message',id,text,phase:kind,done}]}))}
+  function message(id:string,text:string,kind:Phase,done:boolean,deferred=false){const active=owner(id)||turn();const existing=active.entries.find(entry=>entry.id===id);update(active.id,row=>({...row,reasoning:undefined,entries:existing?row.entries.map(entry=>entry.id===id?{...entry,text,phase:kind,done} as Message:entry):[...row.entries,{type:'message',id,text,phase:kind,done}]}),true,deferred)}
   function tool(id:string,name:string,args:any,status:Tool['status'],result?:any,messageId?:string){const active=owner(id)||owner(messageId!)||turn(),existing=active.entries.find(entry=>entry.id===id);update(active.id,row=>({...row,reasoning:undefined,entries:existing?row.entries.map(entry=>entry.id===id?{...entry,name,args:args??(entry as Tool).args,status,result,progress:result?.execution_progress||(entry as Tool).progress} as Tool:entry):[...row.entries,{type:'tool',id,name,args,status,result,progress:result?.execution_progress}]}))}
   function artifact(id:string,messageId?:string){
     const source=owner(messageId!);
@@ -33,23 +34,22 @@ export function createTranscriptStore(){
     switch(event.type){
       case 'agent_start':case 'turn_start':{const active=turn();update(active.id,row=>({...row,running:true}));break}
       case 'message_started':message(event.message_id!,'','pending',false);break;
-      case 'model_activity':{const active=owner(event.message_id!)||turn();update(active.id,row=>({...row,activity:'thinking'}));break}
+      case 'model_activity':{const active=owner(event.message_id!)||turn();update(active.id,row=>({...row,activity:'thinking'}),true,true);break}
       case 'reasoning_delta':{
         const updatedAt=Date.parse(event.ts);
         if(Date.now()-updatedAt>=REASONING_PREVIEW_MS)break;
-        const active=owner(event.message_id!)!;
-        const item=active.entries.find(entry=>entry.id===event.message_id) as Message;
-        if(!active.running||active.waiting||item.done||item.phase!=='pending'||item.text)break;
-        update(active.id,row=>({...row,reasoning:{messageId:event.message_id!,text:((row.reasoning&&row.reasoning.messageId===event.message_id&&updatedAt-row.reasoning.updatedAt<REASONING_PREVIEW_MS?row.reasoning.text:'')+event.text!).slice(-600),updatedAt}}),false);
+        const active=owner(event.message_id!),item=active?.entries.find(entry=>entry.id===event.message_id) as Message|undefined;
+        if(!active||!item||!active.running||active.waiting||item.done||item.phase!=='pending'||item.text)break;
+        update(active.id,row=>({...row,reasoning:{messageId:event.message_id!,text:((row.reasoning&&row.reasoning.messageId===event.message_id&&updatedAt-row.reasoning.updatedAt<REASONING_PREVIEW_MS?row.reasoning.text:'')+event.text!).slice(-600),updatedAt}}),false,true);
         break;
       }
-      case 'message_delta':{const item=owner(event.message_id!)!.entries.find(entry=>entry.id===event.message_id) as Message;message(item.id,item.text+event.text!,item.phase,false);break}
-      case 'message_phase':case 'message_completed':{const item=owner(event.message_id!)!.entries.find(entry=>entry.id===event.message_id) as Message;message(item.id,item.text,phase(event.phase!),event.type==='message_completed');break}
+      case 'message_delta':{const item=owner(event.message_id!)?.entries.find(entry=>entry.id===event.message_id) as Message|undefined;message(event.message_id!,(item?.text||'')+event.text!,item?.phase||'pending',false,true);break}
+      case 'message_phase':case 'message_completed':{const item=owner(event.message_id!)?.entries.find(entry=>entry.id===event.message_id) as Message|undefined;message(event.message_id!,item?.text||'',phase(event.phase!),event.type==='message_completed');break}
       case 'tool_call_started':tool(event.tool_call_id!,event.tool_name!,{},'preparing',undefined,event.message_id);break;
       case 'tool_execution_start':tool(event.tool_call_id!,event.tool_name!,typeof event.args==='string'?JSON.parse(event.args):event.args,'running',undefined,event.message_id);break;
-      case 'tool_execution_progress':{const active=owner(event.tool_call_id!)!;update(active.id,row=>({...row,entries:row.entries.map(entry=>entry.id===event.tool_call_id?{...entry,progress:(entry as Tool).progress?.some(stage=>stage.stage===event.result.stage)?(entry as Tool).progress!.map(stage=>stage.stage===event.result.stage?event.result:stage):[...((entry as Tool).progress||[]),event.result]} as Tool:entry)}));break}
+      case 'tool_execution_progress':{const active=owner(event.tool_call_id!);if(!active)break;update(active.id,row=>({...row,entries:row.entries.map(entry=>entry.id===event.tool_call_id?{...entry,progress:(entry as Tool).progress?.some(stage=>stage.stage===event.result.stage)?(entry as Tool).progress!.map(stage=>stage.stage===event.result.stage?event.result:stage):[...((entry as Tool).progress||[]),event.result]} as Tool:entry)}),true,true);break}
       case 'tool_execution_end':{const item=owner(event.tool_call_id!)?.entries.find(entry=>entry.id===event.tool_call_id) as Tool;if(item)tool(item.id,event.tool_name!,item.args,event.is_error?'error':'done',event.result);break}
-      case 'artifact_ready':artifact(event.result.artifact_id,event.message_id||event.tool_call_id);break;
+      case 'artifact_ready':artifact(event.result.artifact_id,event.tool_call_id||event.message_id);break;
       case 'user_input_requested':{const active=turn();update(active.id,row=>({...row,waiting:true,reasoning:undefined}));break}
       case 'error':turn();finish(event.text);break;
       case 'stopped':{const active=turn();update(active.id,row=>({...row,stopped:true}));finish();break}
@@ -70,7 +70,7 @@ export function createTranscriptStore(){
         message(value.message_id||'message-history-'+index,value.content||'',kind,true);
         for(const call of value.tool_calls||[]){const args=call.arguments_error?{}:typeof call.function.arguments==='string'?JSON.parse(call.function.arguments):call.function.arguments;tools.set(call.id,{name:call.function.name,args});tool(call.id,call.function.name,args,call.arguments_error?'error':'preparing',call.arguments_error?{status:'error',error:{code:'bad_args',message:call.arguments_error}}:undefined)}
       }
-      if(value.role==='tool'&&tools.has(value.tool_call_id)){const result={...JSON.parse(value.content),...value.tool_presentation},call=tools.get(value.tool_call_id)!;tool(value.tool_call_id,call.name,call.args,result.status==='error'?'error':'done',result);if(result.artifact)artifact(result.artifact.artifact_id,value.tool_call_id);for(const item of result.artifacts||[])artifact(item.artifact_id,value.tool_call_id);for(const item of result.result_links||[])artifact(item.artifact_id,value.tool_call_id)}
+      if(value.role==='tool'&&tools.has(value.tool_call_id)){let parsed;try{parsed=JSON.parse(value.content)}catch{parsed={status:'error',error:{code:'unreadable_result',message:'工具结果无法解析'}}}const result={...parsed,...value.tool_presentation},call=tools.get(value.tool_call_id)!;tool(value.tool_call_id,call.name,call.args,result.status==='error'?'error':'done',result);if(result.artifact)artifact(result.artifact.artifact_id,value.tool_call_id);for(const item of result.artifacts||[])artifact(item.artifact_id,value.tool_call_id);for(const item of result.result_links||[])artifact(item.artifact_id,value.tool_call_id)}
     });
     if(snapshot.running){const active=turn();update(active.id,row=>({...row,running:true,startedAt:snapshot.live?.started_at?Date.parse(snapshot.live.started_at):Date.now()}))}else if(current||snapshot.last_error||snapshot.last_stopped){turn();finish(snapshot.last_error)}
     if(snapshot.pending_input){const active=turn();update(active.id,row=>({...row,waiting:true}))}

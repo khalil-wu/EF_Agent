@@ -31,10 +31,36 @@ def ensure_layout() -> Path:
     return root
 
 
+def relocate(path, root=None):
+    """Map a path recorded under another machine's root onto the storage dir (or ``root``)."""
+    if path is None or path == "":
+        return path
+    if Path(path).exists():
+        return str(path)
+    root = Path(root) if root is not None else storage_dir()
+    from eegagent.core.relocate import relocate_suffix
+    moved = relocate_suffix(str(path), root)
+    return moved if moved is not None else str(path)
+
+
+def relocate_record(record: dict) -> dict:
+    for key in ("source_path", "vision_path"):
+        if record.get(key):
+            record[key] = relocate(record[key])
+    if record.get("source_files"):
+        record["source_files"] = [relocate(path) for path in record["source_files"]]
+    if record.get("uri"):
+        record["uri"] = relocate(record["uri"])
+    for value in record.get("representations", {}).values():
+        if value.get("uri"):
+            value["uri"] = relocate(value["uri"])
+    return record
+
+
 def resolve_inside_storage(path: str | Path) -> Path:
     """Reject any path outside the storage whitelist. This is the worker's sandbox rule."""
     root = ensure_layout().resolve()
-    candidate = Path(path)
+    candidate = Path(relocate(path, root))
     if not candidate.is_absolute():
         candidate = root / candidate
     candidate = candidate.resolve()
@@ -71,7 +97,7 @@ def load_manifest(manifest_id: str) -> dict:
     scoped_metadata(path)
     if not path.exists():
         raise FileNotFoundError(f"unknown manifest_id: {manifest_id}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return relocate_record(json.loads(path.read_text(encoding="utf-8")))
 
 
 # ---------------------------------------------------------------- artifacts
@@ -111,7 +137,7 @@ def load_artifact(artifact_id: str) -> dict:
     scoped_metadata(path)
     if not path.exists():
         raise FileNotFoundError(f"unknown artifact_id: {artifact_id}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return relocate_record(json.loads(path.read_text(encoding="utf-8")))
 
 
 def artifact_exists(artifact_id: str) -> bool:
