@@ -59,13 +59,16 @@ export function createTranscriptStore(options:{schedule?:(flush:()=>void)=>void}
   function hydrate(snapshot:any){
     state={rows:[],metadataVersion:state.metadataVersion+1,contentVersion:state.contentVersion+1};current=null;counter=0;
     const tools=new Map<string,{name:string;args:any}>();
+    let lastUserAt:number|undefined;
     (snapshot.messages||[]).forEach((value:any,index:number)=>{
       if(value.role==='user'){
         if(/^<(reflection|compaction_summary|file_context|latest_context)>/.test(value.content))return;
+        lastUserAt=value.ts?Date.parse(value.ts):undefined;
         if(current)finish();addUser(value.presentation||{text:value.content},'user-history-'+index);return;
       }
       if(value.role==='assistant'){
-        if(!current)addTurn('turn-history-'+index,false);
+        if(!current){const id=addTurn('turn-history-'+index,false);if(lastUserAt!==undefined)update(id,row=>({...row,startedAt:lastUserAt}))}
+        if(value.ts&&current){const at=Date.parse(value.ts);if(!Number.isNaN(at))update(current,row=>({...row,finishedAt:at}))}
         const kind=value.phase?phase(value.phase):value.tool_calls?.length?'commentary':'answer';
         message(value.message_id||'message-history-'+index,value.content||'',kind,true);
         for(const call of value.tool_calls||[]){const args=call.arguments_error?{}:typeof call.function.arguments==='string'?JSON.parse(call.function.arguments):call.function.arguments;tools.set(call.id,{name:call.function.name,args});tool(call.id,call.function.name,args,call.arguments_error?'error':'preparing',call.arguments_error?{status:'error',error:{code:'bad_args',message:call.arguments_error}}:undefined)}

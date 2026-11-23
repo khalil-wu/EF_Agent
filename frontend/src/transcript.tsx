@@ -42,7 +42,12 @@ function prepareMarkdown(text:string,numbers:Map<string,number>,options:Options)
   ).join('');
 }
 const MarkdownContext=createContext<{options:Options;numbers:Map<string,number>}>(null!);
+const CodeBlock=memo(function CodeBlock({children}:{children?:React.ReactNode}){
+  const [copied,setCopied]=useState(false),pre=useRef<HTMLPreElement>(null);
+  return <div className="code-block"><button type="button" className="code-copy icon-btn" title="复制代码" aria-label="复制代码" onClick={()=>{navigator.clipboard.writeText(pre.current?.textContent||'').then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1500)}).catch(()=>{})}}><Icon name={copied?'check':'content_copy'}/></button><pre ref={pre}>{children}</pre></div>;
+});
 const markdownComponents:Components={
+      pre({children}){return <CodeBlock>{children}</CodeBlock>},
       a({href,children}){const {options,numbers}=useContext(MarkdownContext);
         if(href?.startsWith('citation:')){const id=href.slice(9),source=options.source(id),number=numbers.get(id);return <button className={'citation-ref'+(source?'':' unavailable')} data-know={id} aria-label={source?`来源 ${number}：${options.sourceTitle(source)} · ${options.sourceLocation(source)}`:'引用原文未定位'} aria-haspopup="dialog" aria-expanded="false" title={source?options.sourceTitle(source)+' · '+options.sourceLocation(source):'原文摘录未保留'}>{number||'?'}</button>}
         if(href?.startsWith('artifact:')){const id=href.slice(11),artifact=options.artifact(id);return artifact?<a className="art" href={'/artifacts/'+artifact.artifact_id+'/file'} data-art={artifact.artifact_id}>{children}</a>:<span>{children}</span>}
@@ -125,7 +130,7 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
     const fade=setTimeout(()=>setReasoningPhase('fading'),Math.max(0,remaining-200)),hide=setTimeout(()=>setReasoningPhase('hidden'),remaining);
     return()=>{clearTimeout(fade);clearTimeout(hide)};
   },[row.reasoning]);
-  useLayoutEffect(()=>{if(reasoningText.current)reasoningText.current.scrollTop=reasoningText.current.scrollHeight},[row.reasoning?.text,reasoningPhase]);
+  useLayoutEffect(()=>{const el=reasoningText.current;if(!el)return;el.scrollTop=el.scrollHeight;el.classList.toggle('is-clipped',el.scrollHeight>el.clientHeight+1)},[row.reasoning?.text,reasoningPhase]);
   useEffect(()=>{if(!row.running||!latestComment){setCommentPreview(undefined);return}setCommentPreview(latestComment.id);const timer=setTimeout(()=>setCommentPreview(undefined),18000);return()=>clearTimeout(timer)},[row.running,latestComment?.id,latestComment?.text]);
   useEffect(()=>{if(row.running||!row.finishedAt||row.error||row.stopped){setRecentCompletion(false);return}setRecentCompletion(true);const timer=setTimeout(()=>setRecentCompletion(false),5000);return()=>clearTimeout(timer)},[row.running,row.finishedAt,row.error,row.stopped]);
   const answers=row.entries.filter((entry):entry is Message=>entry.type==='message'&&(entry.phase==='answer'||entry.phase==='partial'));

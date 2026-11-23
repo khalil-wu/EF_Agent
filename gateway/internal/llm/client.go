@@ -30,6 +30,7 @@ type Message struct {
 	ToolPresentation json.RawMessage    `json:"tool_presentation,omitempty"` // full UI delivery fields; omitted from provider requests
 	Phase            string             `json:"phase,omitempty"`
 	CitationIDs      []string           `json:"citation_ids,omitempty"`
+	Timestamp        *time.Time         `json:"ts,omitempty"`
 	Images           []ImageInput       `json:"-"` // materialized only for provider requests, never saved as base64 in the transcript
 }
 

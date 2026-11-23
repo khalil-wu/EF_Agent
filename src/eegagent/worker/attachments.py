@@ -19,6 +19,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv"}
 DOCUMENT_EXTS = {".pdf", ".md", ".markdown", ".docx", ".json", ".yaml", ".yml", ".rst"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 VISION_MAX_SIDE = 2048
+READ_DOCUMENT_CHARS = 3000
 UNSUPPORTED_HINTS = {".xlsx": "Excel 表格请另存为 CSV 后上传", ".xls": "Excel 表格请另存为 CSV 后上传",
                      ".doc": "旧版 Word 文档请另存为 .docx 或 PDF 后上传"}
 
@@ -149,7 +150,7 @@ def read_document(manifest_id: str, page: int = 1, limit: int = 3, offset: int =
         text = document_text(file)
         pages = [{"page": 1, "text": text}]
         total = 1
-    budget = 2000 // max(1, len(pages))
+    budget = READ_DOCUMENT_CHARS // max(1, len(pages))
     chunks = []
     for row in pages:
         text = row["text"]

@@ -26,7 +26,7 @@ const AttachmentPreview=(()=>{
       if(m.trial_count>1)html+=`<p class="attachment-preview-info">当前第 ${m.trial_index+1} 个试次${m.trial_selection==='default_first'?'（默认）':''} · 下方波形对应此试次。</p>`;
       if(result.preview)html+=`<div class="attachment-wave"><img src="/artifacts/${esc(result.preview.artifact_id)}/file" alt="${esc(m.original_name)} EEG 波形预览" data-preview-zoom></div>`;
       if(result.preview_note)html+=`<p class="attachment-preview-info">${esc(result.preview_note)}</p>`;
-      html+=`<details class="attachment-details"><summary>通道与记录信息</summary><dl><dt>通道</dt><dd>${esc((m.channel_names||[]).join(', '))}</dd><dt>格式</dt><dd>${esc(format.toUpperCase())}</dd><dt>单位</dt><dd>${esc(m.unit?.value||'原始数值')}</dd></dl></details>`;
+      html+=`<details class="attachment-details"><summary>${icon('chevron_right')}通道与记录信息</summary><dl><dt>通道</dt><dd>${esc((m.channel_names||[]).join(', '))}</dd><dt>格式</dt><dd>${esc(format.toUpperCase())}</dd><dt>单位</dt><dd>${esc(m.unit?.value||'原始数值')}</dd></dl></details>`;
     }
     if(result.content!==undefined){
       html+=format==='md'||format==='markdown'?`<div class="attachment-document md">${markdown(result.content)}</div>`:`<pre class="attachment-text">${esc(result.content)}</pre>`;

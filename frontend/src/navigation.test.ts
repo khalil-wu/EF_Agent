@@ -81,8 +81,8 @@ test('an active file upload retains its session instead of redirecting the pendi
 });
 
 function keyboard(){
-  const classes=new Set(['sheet-open']),drawerClasses=new Set(['open']),closed:string[]=[],listeners:((event:any)=>void)[]=[];
-  const dialog={open:false},lightbox={style:{display:'flex'}},drawer={classList:{contains:(name:string)=>drawerClasses.has(name)}};
+  const classes=new Set(['sheet-open']),drawerClasses=new Set(['open']),lightboxClasses=new Set(['open']),closed:string[]=[],listeners:((event:any)=>void)[]=[];
+  const dialog={open:false},lightbox={classList:{contains:(name:string)=>lightboxClasses.has(name),remove:(name:string)=>lightboxClasses.delete(name)}},drawer={classList:{contains:(name:string)=>drawerClasses.has(name)}};
   let popover=true;
   const elements:Record<string,any>={'#sessionDialog':dialog,'#lightbox':lightbox,'#drawer':drawer};
   const document={
@@ -94,6 +94,7 @@ function keyboard(){
     document,$:(selector:string)=>elements[selector],narrow:()=>true,
     closeDrawer:()=>{closed.push('drawer');drawerClasses.delete('open')},
     closeSheet:()=>{closed.push('sheet');classes.delete('sheet-open')},
+    closeLightbox:()=>{lightboxClasses.delete('open')},
     newSession:async()=>{},openDrawer(){},reportError(){},
   });
   vm.runInContext(globalKeyboardListeners,context);
@@ -101,7 +102,7 @@ function keyboard(){
     const event={key:'Escape',ctrlKey:false,metaKey:false,defaultPrevented,preventDefault(){this.defaultPrevented=true}};
     listeners.forEach(listener=>listener(event));
   }
-  return {classes,drawerClasses,closed,dialog,lightbox,press,dismissPopover(){popover=false}};
+  return {classes,drawerClasses,lightboxClasses,closed,dialog,lightbox,press,dismissPopover(){popover=false}};
 }
 
 test('Escape leaves the drawer and result sheet intact while a popover is the top layer',()=>{
@@ -110,14 +111,14 @@ test('Escape leaves the drawer and result sheet intact while a popover is the to
   assert.deepEqual(f.closed,[],'the browser or popover owns this Escape before the shell handles lower layers');
   assert.equal(f.drawerClasses.has('open'),true);
   assert.equal(f.classes.has('sheet-open'),true);
-  assert.equal(f.lightbox.style.display,'flex');
+  assert.equal(f.lightboxClasses.has('open'),true);
 });
 
 test('subsequent Escape presses close only lightbox, then result sheet, then drawer',()=>{
   const f=keyboard();
   f.dismissPopover();
   f.press();
-  assert.equal(f.lightbox.style.display,'none');
+  assert.equal(f.lightboxClasses.has('open'),false);
   assert.deepEqual(f.closed,[]);
   f.press();
   assert.deepEqual(f.closed,['sheet']);
@@ -130,10 +131,10 @@ test('Escape consumed by a local picker or an open dialog does not dismiss lower
   const f=keyboard();
   f.dismissPopover();
   f.press(true);
-  assert.equal(f.lightbox.style.display,'flex');
+  assert.equal(f.lightboxClasses.has('open'),true);
   assert.deepEqual(f.closed,[]);
   f.dialog.open=true;
   f.press();
-  assert.equal(f.lightbox.style.display,'flex');
+  assert.equal(f.lightboxClasses.has('open'),true);
   assert.deepEqual(f.closed,[]);
 });

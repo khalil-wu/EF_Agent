@@ -82,7 +82,13 @@ func (s *Server) resolveAttachment(r *http.Request) (*attachmentView, error) {
 		}
 	}
 	base, _ := filepath.Abs(filepath.Join(s.StorageDir, "uploads"))
+	if resolved, err := filepath.EvalSymlinks(base); err == nil {
+		base = resolved
+	}
 	path, _ := filepath.Abs(contracts.RelocateStoragePath(s.StorageDir, manifest.SourcePath))
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
 	rel, err := filepath.Rel(base, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		if snapshot.WorkspaceID == "" {
@@ -98,7 +104,11 @@ func (s *Server) resolveAttachment(r *http.Request) (*attachmentView, error) {
 		if err := json.Unmarshal(body, &workspace); err != nil {
 			return nil, err
 		}
-		rel, err = filepath.Rel(contracts.RelocateStoragePath(s.StorageDir, workspace.Root), path)
+		workspaceRoot, _ := filepath.Abs(contracts.RelocateStoragePath(s.StorageDir, workspace.Root))
+		if resolved, err := filepath.EvalSymlinks(workspaceRoot); err == nil {
+			workspaceRoot = resolved
+		}
+		rel, err = filepath.Rel(workspaceRoot, path)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return nil, fmt.Errorf("文件不在当前工作区中")
 		}

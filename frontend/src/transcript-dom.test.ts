@@ -222,3 +222,23 @@ test('a streaming delta re-renders only its own turn, leaving completed turns un
   assert.match(document.querySelector('[data-message-id="msg_live"]')!.textContent!,/新的流式文本/);
   dom.window.close();
 });
+
+test('a fenced code block renders a copy button that writes the block text to the clipboard',async t=>{
+  const dom=new JSDOM('<div id="chat"></div>',{url:'http://localhost/'});
+  Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,IS_REACT_ACT_ENVIRONMENT:true});
+  (globalThis as any).IconSystem=createRequire(import.meta.url)('../../gateway/internal/server/static/icons.js');
+  const copied:string[]=[];
+  Object.defineProperty(globalThis,'navigator',{value:{clipboard:{writeText:(text:string)=>{copied.push(text);return Promise.resolve()}}},configurable:true});
+  t.after(()=>{dom.window.close();delete (globalThis as any).navigator;(globalThis as any).IS_REACT_ACT_ENVIRONMENT=false});
+  const options:Options={session:()=> 'session',source:()=>null,artifact:()=>null,sourceTitle:()=>'',sourceLocation:()=>'',references:()=>[],artifactTitle:()=>'',toolLabel:()=>'',formatArgs:()=>'',toolSummary:()=>'',toolVisible:()=>true,openResults(){},openArtifact(){},openAttachment(){},openReference(){},openTrace(){},copy(){},retry(){},changed(){}};
+  const store=mount(document.querySelector('#chat')!,options);
+  await act(async()=>{store.addUser({text:'写一段代码'});store.addTurn();store.apply({type:'message_started',message_id:'code'});store.apply({type:'message_delta',message_id:'code',text:'```python\nimport numpy as np\nprint(np.mean([1,2]))\n```'});store.apply({type:'message_completed',message_id:'code',phase:'final_answer'});store.finish()});
+  const button=document.querySelector<HTMLButtonElement>('.code-block>.code-copy');
+  assert.ok(button,'the copy control renders on every fenced block');
+  assert.equal(button.title,'复制代码');
+  await act(async()=>button.click());
+  const pre=document.querySelector('.code-block pre')!;
+  assert.equal(copied.length,1);
+  assert.equal(copied[0],pre.textContent);
+  assert.match(copied[0],/import numpy as np/);
+});

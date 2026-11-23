@@ -97,6 +97,21 @@ test('selected file and directory references keep their actual identities after 
   assert.equal(user.text,'分析 @.');assert.deepEqual(user.references,references);
 });
 
+test('persisted message timestamps restore turn timing and untimestamped history stays undated',()=>{
+  const store=createTranscriptStore();
+  store.hydrate({messages:[
+    {role:'user',content:'分析',ts:'2026-01-04T08:00:00.000Z'},
+    {role:'assistant',content:'回答',ts:'2026-01-04T08:02:30.000Z',message_id:'a1',phase:'final_answer'},
+  ],running:false});
+  const turn=turns(store)[0];
+  assert.equal(turn.startedAt,Date.parse('2026-01-04T08:00:00.000Z'));
+  assert.equal(turn.finishedAt,Date.parse('2026-01-04T08:02:30.000Z'));
+  const legacy=createTranscriptStore();
+  legacy.hydrate({messages:[{role:'user',content:'分析'},{role:'assistant',content:'回答',message_id:'a1',phase:'final_answer'}],running:false});
+  const old=turns(legacy)[0];
+  assert.equal(old.startedAt,undefined);assert.equal(old.finishedAt,undefined);
+});
+
 test('refresh restores output cards from compact tool result links into the original turn',()=>{
   const store=createTranscriptStore();
   store.hydrate({messages:[

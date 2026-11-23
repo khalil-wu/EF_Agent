@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"regexp"
+	"time"
 
 	"eegagent/gateway/internal/llm"
 )
@@ -48,7 +49,8 @@ func (s *Session) RestoreSources() {
 }
 
 func (s *Session) assistantMessage(text, phase string) llm.Message {
-	message := llm.Message{Role: "assistant", Content: text, Phase: phase}
+	now := time.Now()
+	message := llm.Message{Role: "assistant", Content: text, Phase: phase, Timestamp: &now}
 	seen := map[string]bool{}
 	for _, id := range citationID.FindAllString(quotedCode.ReplaceAllString(text, ""), -1) {
 		if _, available := s.Sources[id]; available && !seen[id] {

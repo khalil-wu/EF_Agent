@@ -53,6 +53,7 @@ MAPPING = {
     "monitor_heart": "heart-pulse",
     "more_horiz": "ellipsis",
     "neurology": "brain",
+    "open_in_full": "maximize-2",
     "open_in_new": "external-link",
     "person": "user-round",
     "progress_activity": "loader-circle",

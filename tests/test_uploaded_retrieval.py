@@ -9,7 +9,7 @@ import pytest
 
 from eegagent.knowledge.chunking import MAX_CHUNK_CHARS, _split_long
 from eegagent.knowledge.documents import document_dir, get_document_chunk, load_document, search_documents
-from eegagent.worker.attachments import register_attachment, read_document
+from eegagent.worker.attachments import register_attachment, read_document, READ_DOCUMENT_CHARS
 from eegagent.worker.inspect_record import inspect_record
 from eegagent.worker.metadata import update_record_metadata
 from eegagent.worker.signals import load_signal
@@ -119,8 +119,8 @@ def test_long_document_page_can_be_read_without_discarding_or_skipping_text(stor
     first = first_read["pages"][0]
     second_read = read_document(manifest["manifest_id"], limit=1, offset=first["next_offset"])
     second = second_read["pages"][0]
-    assert first["has_more"] and second["start_offset"] == 2000
-    assert first["text"] + second["text"] == text[:4000]
+    assert first["has_more"] and second["start_offset"] == READ_DOCUMENT_CHARS
+    assert first["text"] + second["text"] == text[:READ_DOCUMENT_CHARS * 2]
     assert len(first["text"].encode("utf-8")) < 12000
     for result in (first_read, second_read):
         (chunk,) = result["chunks"]
@@ -151,8 +151,8 @@ def test_pdf_offset_citation_contains_only_the_actual_page_window(storage):
     (chunk,) = result["chunks"]
     full_page = parsed["pages"][0]["text"]
     assert len(full_page) > 3200
-    assert chunk["text"] == full_page[1200:3200]
-    assert chunk["start_offset"] == 1200 and chunk["next_offset"] == 3200
+    assert chunk["text"] == full_page[1200:1200 + READ_DOCUMENT_CHARS]
+    assert chunk["start_offset"] == 1200 and chunk["next_offset"] == 1200 + READ_DOCUMENT_CHARS
     assert chunk["page"] == 1 and chunk["extraction_method"] == "native_text"
     assert get_document_chunk(chunk["chunk_id"], "ses_111111") == chunk
     assert all(row["page"] == 1 for row in result["chunks"])
@@ -169,7 +169,7 @@ def test_branched_session_reads_and_resolves_its_own_document_windows(storage):
     shutil.copytree(document_dir("ses_111111"), document_dir("ses_child"))
     submit_document(storage, "ses_child", manifest)
     child = run_tool("read_document", {"manifest_id": manifest["manifest_id"], "limit": 1,
-                                        "offset": 2000, "_session_id": "ses_child"})
+                                        "offset": READ_DOCUMENT_CHARS, "_session_id": "ses_child"})
     (child_chunk,) = child["chunks"]
     assert get_document_chunk(child_chunk["chunk_id"], "ses_child") == child_chunk
     assert get_document_chunk(child_chunk["chunk_id"], "ses_111111") is None

@@ -126,7 +126,8 @@ type TurnUsage struct {
 func (s *Session) Steer(text string, presentation *llm.InputPresentation) {
 	s.steerMu.Lock()
 	defer s.steerMu.Unlock()
-	s.steer = append(s.steer, llm.Message{Role: "user", Content: text, Presentation: presentation})
+	now := time.Now()
+	s.steer = append(s.steer, llm.Message{Role: "user", Content: text, Presentation: presentation, Timestamp: &now})
 }
 
 func (s *Session) DrainSteering() []llm.Message {
@@ -187,7 +188,8 @@ func Run(ctx context.Context, cfg Config, s *Session, userText string, emit func
 	if userText != "" {
 		s.PendingInput = nil
 		s.KnowledgeQuery = ""
-		s.Messages = append(s.Messages, llm.Message{Role: "user", Content: userText, Presentation: cfg.InputPresentation})
+		now := time.Now()
+		s.Messages = append(s.Messages, llm.Message{Role: "user", Content: userText, Presentation: cfg.InputPresentation, Timestamp: &now})
 	}
 	checkpoint := func() error {
 		s.UpdatedAt = time.Now()

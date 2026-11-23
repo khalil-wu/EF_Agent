@@ -107,8 +107,9 @@ function showTab(name){
   $$('.workspace-nav [data-panel]').forEach(button=>button.classList.toggle('active',button.dataset.panel===name&&document.body.classList.contains('sheet-open')));
 }
 function badge(id,n){const b=$(id);b.textContent=n;b.hidden=true}
-function lightbox(src){const lb=$('#lightbox');lb.querySelector('img').src=src;lb.style.display='flex'}
-$('#lightbox').onclick=()=>$('#lightbox').style.display='none';
+function lightbox(src){const lb=$('#lightbox');lb.querySelector('img').src=src;lb.classList.add('open')}
+function closeLightbox(){$('#lightbox').classList.remove('open')}
+$('#lightbox').onclick=()=>closeLightbox();
 function scroll(){const selection=document.getSelection();if(followBottom&&!(selection?.toString()&&$('#chat').contains(selection.anchorNode))){const c=$('#chat');c.scrollTop=c.scrollHeight}}
 $('#chat').addEventListener('load',e=>{if(e.target.tagName==='IMG')scroll()},true);
 let scrollIntentAt=-Infinity,pointerHeld=false;
@@ -189,8 +190,9 @@ function renderSessionList(){
   independent.forEach(record=>append(record,box));
   if(!workspaceCatalog.length&&!independent.length)box.innerHTML='<div class="list-empty">挂接一个文件夹，开始新的分析。</div>';
   openingWorkspace='';
+  if(sessionId&&revealedSession!==sessionId){const active=box.querySelector('.ses.on');if(active){active.scrollIntoView?.({block:'nearest'});revealedSession=sessionId}}
 }
-let openingWorkspace='';
+let openingWorkspace='';let revealedSession='';
 function openWorkspaceMenu(record,anchor,point){
   menuWorkspace=record;const menu=$('#workspaceMenu');
   const busy=sessionsCache.some(session=>session.workspace_id===record.workspace_id&&session.running)||currentWorkspaceID===record.workspace_id&&(streaming||uploading||submitting||navigating);
@@ -840,13 +842,13 @@ function renderResultCatalog(){
     const summary=document.createElement('p');summary.className='result-group-summary';summary.textContent=[items.length?TranscriptUI.resultSummary(items):'',deliveries.length?'工作区文件':''].filter(Boolean).join(' · ');section.appendChild(summary);
     for(const item of items.filter(value=>!TranscriptUI.isProcessResult(value)&&value.kind!=='normalized_signal'))section.appendChild(resultRow(item));
     const signals=items.filter(value=>value.kind==='normalized_signal');
-    if(signals.length){const details=document.createElement('details');details.className='signal-results';details.open=signals.length<5||Boolean(query);const label=document.createElement('summary');label.textContent=`EEG 数据 · ${signals.length} 份`;details.appendChild(label);for(const item of signals)details.appendChild(resultRow(item));section.appendChild(details)}
+    if(signals.length){const details=document.createElement('details');details.className='signal-results';details.open=signals.length<5||Boolean(query);const label=document.createElement('summary');label.innerHTML=`<span class="ms">chevron_right</span>EEG 数据 · ${signals.length} 份`;details.appendChild(label);for(const item of signals)details.appendChild(resultRow(item));section.appendChild(details)}
     const process=items.filter(TranscriptUI.isProcessResult);
-    if(process.length){const details=document.createElement('details');details.className='process-results';details.open=Boolean(query);const label=document.createElement('summary');label.textContent=`过程数据 · ${process.length}`;details.appendChild(label);for(const item of process)details.appendChild(resultRow(item));section.appendChild(details)}
+    if(process.length){const details=document.createElement('details');details.className='process-results';details.open=Boolean(query);const label=document.createElement('summary');label.innerHTML=`<span class="ms">chevron_right</span>过程数据 · ${process.length}`;details.appendChild(label);for(const item of process)details.appendChild(resultRow(item));section.appendChild(details)}
     for(const delivery of deliveries){
       const folder=workspaceDeliveryFolder(delivery.files,delivery.count),partial=delivery.count>delivery.files.length;
       const details=document.createElement('details');details.className='workspace-delivery';details.open=Boolean(query)||delivery.files.length<=6;
-      const label=document.createElement('summary');label.textContent=`工作区文件 · ${delivery.count} 个`;
+      const label=document.createElement('summary');label.innerHTML=`<span class="ms">chevron_right</span>工作区文件 · ${delivery.count} 个`;
       details.appendChild(label);
       const directory=document.createElement('button');directory.className='result-directory';directory.textContent=folder.path==='.'?'打开工作区':'打开 '+folder.path;directory.onclick=()=>openReference(folder);details.appendChild(directory);
       if(partial){const note=document.createElement('p');note.className='result-history-note';note.textContent=`历史路径记录 ${delivery.files.length} / ${delivery.count}`;details.appendChild(note)}
@@ -1311,7 +1313,7 @@ async function loadLLMModels(){
     if(currentLLMModel)setConversationModel(currentLLMModel,currentVisionModel,effectiveVisionModel);
     else renderPendingFiles();
   }catch(error){
-    box.replaceChildren();const text=document.createElement('div');text.className='llm-empty';text.textContent=error.message;box.appendChild(text);
+    box.innerHTML=`<div class="llm-empty">无法读取模型列表，请检查模型服务地址、密钥与网络。<details class="error-details"><summary>查看错误详情</summary><p>${esc(error.message)}</p></details></div>`;
   }
 }
 async function selectLLMModel(model){
@@ -1401,6 +1403,7 @@ $('#inputRequest').addEventListener('submit',submitInputRequest);
 $('#newSession').onclick=()=>newSession().catch(reportError);$('#newSession2').onclick=()=>{closeDrawer();newSession().catch(reportError)};$('#send').onclick=()=>{const action=streaming&&!$('#input').value.trim()&&!fileMentions.references().length?stopGeneration():send();action.catch(reportError)};
 $('#drawerBtn').onclick=openDrawer;$('#drawerClose').onclick=closeDrawer;
 document.body.classList.toggle('sidebar-collapsed',localStorage.getItem('eeg-sidebar-collapsed')==='true');
+{const wideBtn=$('#sheetWide'),applyWide=wide=>{document.body.classList.toggle('sheet-wide',wide);wideBtn.setAttribute('aria-pressed',String(wide));wideBtn.title=wide?'恢复宽度':'加宽面板';wideBtn.setAttribute('aria-label',wideBtn.title);wideBtn.querySelector('.ms').textContent=wide?'compress':'open_in_full'};applyWide(localStorage.getItem('eeg-sheet-wide')==='true');wideBtn.onclick=()=>{const wide=!document.body.classList.contains('sheet-wide');localStorage.setItem('eeg-sheet-wide',wide?'true':'false');applyWide(wide)}}
 $('#drawerBtn').setAttribute('aria-expanded',String(innerWidth>900&&!document.body.classList.contains('sidebar-collapsed')));
 const narrow=()=>matchMedia('(max-width:1200px)').matches;
 function openSheet(){$('#drawer').classList.remove('open');if(innerWidth<=900)$('#drawerBtn').setAttribute('aria-expanded','false');$('#sheetBtn').setAttribute('aria-expanded','true');document.body.classList.add('sheet-open');$('#sheetBtn').classList.add('on');showTab(currentPanel);if(narrow())$('#scrim').style.display='block'}
@@ -1450,7 +1453,7 @@ $('#sessionSearchToggle').onclick=()=>toggleSessionSearch($('#sessionSearch').hi
 $('#sessionSearch').addEventListener('keydown',event=>{if(event.key==='Escape'){toggleSessionSearch(false);$('#sessionSearchToggle').focus()}});
 $$('[data-panel]').forEach(b=>b.onclick=()=>{closeDrawer();showTabAndOpen(b.dataset.panel)});
 document.addEventListener('click',e=>{if(e.target.matches('.report-image'))lightbox(e.target.src)});
-document.addEventListener('keydown',e=>{if($('#sessionDialog').open||e.defaultPrevented)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();newSession().catch(reportError)}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();openDrawer()}if(e.key==='Escape'){if(document.querySelector(':popover-open'))return;if($('#lightbox').style.display==='flex')$('#lightbox').style.display='none';else if(document.body.classList.contains('sheet-open'))closeSheet();else if($('#drawer').classList.contains('open'))closeDrawer()}});
+document.addEventListener('keydown',e=>{if($('#sessionDialog').open||e.defaultPrevented)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();newSession().catch(reportError)}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='b'){e.preventDefault();openDrawer()}if(e.key==='Escape'){if(document.querySelector(':popover-open'))return;if($('#lightbox').classList.contains('open'))closeLightbox();else if(document.body.classList.contains('sheet-open'))closeSheet();else if($('#drawer').classList.contains('open'))closeDrawer()}});
 
 document.addEventListener('click',e=>{const button=e.target.closest('[data-activate-skill]');if(button)activateSkill(button.dataset.activateSkill).then(()=>{if(narrow())closeSheet()}).catch(reportError)});
 $('#trashToggle').onclick=()=>{trashView=!trashView;$('#sessionSearch').value='';updateSessionListHeader();refreshSessions().catch(reportError)};

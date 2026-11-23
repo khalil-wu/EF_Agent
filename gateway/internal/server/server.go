@@ -513,6 +513,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	ses.UpdatedAt = time.Now()
 	s.persist(ses)
+	s.publishLocked(ses)
 	s.mu.Unlock()
 	writeJSON(w, 200, resp)
 }
