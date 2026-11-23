@@ -5,6 +5,9 @@ RRF fusion of three retrievers (BM25, dense, entity-linked defining chunks), opt
 
 from __future__ import annotations
 
+import os
+import threading
+import time
 from pathlib import Path
 import unicodedata
 
@@ -12,13 +15,14 @@ import numpy as np
 
 from .bm25 import BM25
 from .chunking import Chunk, knowledge_dir, load_all_chunks
-from .embed import BaseEmbedder, Reranker, embed_chunks, make_embedder, make_reranker
+from .embed import APIReranker, BaseEmbedder, Reranker, VectorCache, embed_chunks, embed_missing, make_embedder, make_reranker
 from .graph import KnowledgeGraph
 from .tokenize import tokenize
 from .revision import revision
 
 RRF_K = 60
 CAND = 50
+RERANK_K = 10
 GRAPH_SUPPORT_LIMIT = 2
 FACT_LIMIT = 6
 SOURCE_SUPPORT_LIMIT = 2
@@ -64,7 +68,8 @@ def bundle_facts(rows: list[dict], facts: list[dict], by_id: dict[str, Chunk],
 
 class KnowledgeIndex:
     def __init__(self, root: Path | None = None, embedder: BaseEmbedder | None | str = "auto",
-                 reranker: Reranker | None | str = "auto", use_cache: bool = True, include_proposed: bool | None = None):
+                 reranker: Reranker | APIReranker | None | str = "auto", use_cache: bool = True,
+                 include_proposed: bool | None = None, background_embed: bool = False):
         self.root = root or knowledge_dir()
         self.revision = revision(self.root)
         self.chunks: list[Chunk] = load_all_chunks(self.root)
@@ -75,17 +80,61 @@ class KnowledgeIndex:
         self.bm25 = BM25([c.tokens for c in self.chunks])
         self.embedder = make_embedder() if embedder == "auto" else embedder
         self.reranker = make_reranker() if reranker == "auto" else reranker
-        self.vectors = embed_chunks(self.embedder, self.chunks, use_cache) if self.embedder else None
+        self.rerank_mode = os.environ.get("EEGAGENT_RERANK_MODE", "blend")
+        self.vectors = None
+        self.dense_state = {"embedded": 0, "total": len(self.chunks), "ready": False, "error": None}
+        self._dense_down_until = 0.0
+        self._rerank_down_until = 0.0
+        if self.embedder and self.chunks:
+            cache = VectorCache(self.embedder.name) if use_cache else None
+            if cache:
+                self.dense_state["embedded"] = sum(cache.get(c.chunk_id, c.text_sha) is not None for c in self.chunks)
+            if cache and self.dense_state["embedded"] == self.dense_state["total"]:
+                self.vectors = self._matrix(cache)
+                self.dense_state["ready"] = True
+            elif not background_embed:
+                self.vectors = embed_chunks(self.embedder, self.chunks, use_cache)
+                self.dense_state["embedded"] = self.dense_state["total"]
+                self.dense_state["ready"] = True
+            else:
+                threading.Thread(target=self._build_dense, args=(cache,), daemon=True).start()
+
+    def _matrix(self, cache: VectorCache) -> np.ndarray:
+        missing = [c.chunk_id for c in self.chunks if cache.get(c.chunk_id, c.text_sha) is None]
+        if missing:
+            raise ValueError(f"vector cache is missing {len(missing)} chunks")
+        return np.stack([cache.get(c.chunk_id, c.text_sha) for c in self.chunks])
+
+    def _build_dense(self, cache: VectorCache | None) -> None:
+        """Fill the vector matrix on a daemon thread; search stays sparse+graph meanwhile."""
+        try:
+            if cache is not None:
+                embed_missing(self.embedder, self.chunks, cache,
+                              on_progress=lambda done, total: self.dense_state.update(embedded=done))
+                self.vectors = self._matrix(cache)
+            else:
+                self.vectors = np.asarray(self.embedder.encode([c.index_text for c in self.chunks]), dtype=np.float32)
+            self.dense_state["embedded"] = self.dense_state["total"]
+            self.dense_state["ready"] = True
+        except Exception as exc:  # noqa: BLE001
+            self.dense_state["error"] = str(exc)[:300]
 
     # ------------------------------------------------------------ retrieval
 
     def _dense_top(self, query: str, n: int) -> list[tuple[int, float]]:
-        if self.vectors is None or self.embedder is None:
+        if self.vectors is None or self.embedder is None or time.monotonic() < self._dense_down_until:
             return []
-        qv = self.embedder.encode([query])[0]
-        sims = self.vectors @ qv
-        order = np.argsort(-sims)[:n]
-        return [(int(i), float(sims[i])) for i in order if sims[i] > 0]
+        try:
+            qv = np.asarray(self.embedder.encode_query(query), dtype=np.float32)
+            if qv.ndim != 1 or qv.shape[0] != self.vectors.shape[1] or not np.isfinite(qv).all():
+                raise ValueError("query embedding has invalid shape or values")
+            sims = self.vectors @ qv
+            order = np.argsort(-sims)[:n]
+            return [(int(i), float(sims[i])) for i in order if sims[i] > 0]
+        except Exception as exc:  # noqa: BLE001
+            self._dense_down_until = time.monotonic() + 60
+            print(f"[knowledge] dense retrieval unavailable: {exc}")
+            return []
 
     def search(self, query: str, k: int = 5, domain: str | None = None, tasks: list[str] | None = None,
                doc_type: str | None = None, expand_graph: bool = True) -> dict:
@@ -169,10 +218,29 @@ class KnowledgeIndex:
 
         cands = [i for i in order if ok(self.chunks[i])][: max(k * 4, 20)]
         scores = {i: fused[i] for i in cands}
-        if self.reranker and cands:
-            rs = self.reranker.scores(query, [self.chunks[i].index_text for i in cands])
-            cands = [i for _, i in sorted(zip(rs, cands), key=lambda x: -x[0])]
-            scores = {i: float(s) for s, i in zip(sorted(rs, reverse=True), cands)}
+        if self.reranker and cands and time.monotonic() >= self._rerank_down_until:
+            try:
+                rs = self.reranker.scores(query, [self.chunks[i].index_text for i in cands])
+                rs = np.asarray(rs, dtype=np.float64)
+                if rs.shape != (len(cands),) or not np.isfinite(rs).all():
+                    raise ValueError("rerank scores have invalid shape or values")
+                rs = rs.tolist()
+            except Exception as exc:  # noqa: BLE001
+                self._rerank_down_until = time.monotonic() + 60
+                print(f"[knowledge] reranker unavailable: {exc}")
+                rs = None
+            if rs is not None:
+                if self.rerank_mode == "replace":
+                    cands = [i for _, i in sorted(zip(rs, cands), key=lambda x: -x[0])]
+                    scores = {i: float(s) for s, i in zip(sorted(rs, reverse=True), cands)}
+                else:
+                    rr_rank = [0] * len(cands)
+                    for rank, j in enumerate(sorted(range(len(cands)), key=lambda j: (-rs[j], j))):
+                        rr_rank[j] = rank
+                    pairs = sorted(zip(cands, [1.0 / (RERANK_K + j + 1) + 1.0 / (RERANK_K + rr_rank[j] + 1)
+                                               for j in range(len(cands))]), key=lambda p: -p[1])
+                    cands = [i for i, _ in pairs]
+                    scores = {i: b for i, b in pairs}
         top = cands[: max(1, min(int(k), 10))]
         rows = [{**self.chunks[i].row(round(scores[i], 4)), "retrieval_role": "match"} for i in top]
 
@@ -247,7 +315,11 @@ class KnowledgeIndex:
                 "n_papers": len({c.doc_id for c in self.chunks if c.doc_type == "paper"}), "docs": docs,
                 "domains": sorted({c.domain for c in self.chunks}),
                 "dense": self.embedder.name if self.embedder else None,
-                "reranker": self.reranker.name if self.reranker else None, "graph": self.graph.stats()}
+                "dense_ready": self.dense_state["ready"],
+                "dense_progress": {"embedded": self.dense_state["embedded"], "total": self.dense_state["total"],
+                                   "error": self.dense_state["error"]},
+                "reranker": self.reranker.name if self.reranker else None,
+                **({"rerank_mode": self.rerank_mode} if self.reranker else {}), "graph": self.graph.stats()}
 
 
 _INDEX: KnowledgeIndex | None = None
@@ -256,15 +328,15 @@ _INDEX: KnowledgeIndex | None = None
 def index() -> KnowledgeIndex:
     global _INDEX
     if _INDEX is None:
-        _INDEX = KnowledgeIndex()
+        _INDEX = KnowledgeIndex(background_embed=True)
     elif _INDEX.revision != revision(_INDEX.root):
-        _INDEX = KnowledgeIndex(_INDEX.root)
+        _INDEX = KnowledgeIndex(_INDEX.root, background_embed=True)
     return _INDEX
 
 
 def reload() -> KnowledgeIndex:
     global _INDEX
-    _INDEX = KnowledgeIndex()
+    _INDEX = KnowledgeIndex(background_embed=True)
     return _INDEX
 
 

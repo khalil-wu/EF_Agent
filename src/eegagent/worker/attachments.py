@@ -13,7 +13,7 @@ from eegagent.core.video_contract import probe_video
 from eegagent.worker.files import resolve_readable
 from eegagent.worker.store import ensure_layout, load_manifest, save_manifest
 from eegagent.worker.text import TEXT_TABLE_EXTS, classify_text_table
-from eegagent.knowledge.documents import committed_documents, document_dir, document_text, parse_document, load_document
+from eegagent.knowledge.documents import committed_documents, document_dir, document_text, ensure_document_vectors, parse_document, load_document
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".flv"}
 DOCUMENT_EXTS = {".pdf", ".md", ".markdown", ".docx", ".json", ".yaml", ".yml", ".rst"}
@@ -78,6 +78,7 @@ def register_attachment(path: str, session_id: str | None = None) -> dict:
         manifest["compat"] = []
     else:
         document = parse_document(file, manifest["manifest_id"], session_id)
+        ensure_document_vectors(manifest["manifest_id"], session_id)
         manifest["page_count"] = document["page_count"]
         manifest["document_index"] = document
         if document["pages_needing_ocr"]:

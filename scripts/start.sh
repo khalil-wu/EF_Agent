@@ -130,14 +130,30 @@ fi
 export EEGAGENT_GATEWAY_BUILD_ID="gateway-$(mtime "$binary")"
 export EEGAGENT_WORKER_BUILD_ID="worker-$("$EEGAGENT_PYTHON" -c 'import os,sys;print(max(os.stat(os.path.join(d,f)).st_mtime_ns for d,_,fs in os.walk(sys.argv[1]) for f in fs if f.endswith(".py")))' "$repo/src")"
 
+config_ids=$("$EEGAGENT_PYTHON" - <<'PY'
+import hashlib, json, os, re
+from pathlib import Path
+e = os.environ
+stamp = lambda name: Path(e[name]).stat().st_mtime_ns if e.get(name) and Path(e[name]).exists() else 0
+retrieval = {k: e[k] for k in sorted(e) if re.match(r'^EEGAGENT_(EMBED_|RERANK_|OCR(?:_|$))', k)}
+worker = [e['EEGAGENT_STORAGE_DIR'], e['EEGAGENT_DATA_DIRS'], e['EEGAGENT_KNOWLEDGE_DIR'], e['EEGAGENT_MODEL_REGISTRY'], stamp('EEGAGENT_MODEL_REGISTRY'), e['EEGAGENT_WORKER_URL'], e['EEGAGENT_PYTHON'], retrieval]
+gateway = [e['EEGAGENT_STORAGE_DIR'], e['EEGAGENT_SKILLS_DIR'], e['EEGAGENT_WORKER_URL'], *[e.get('EEGAGENT_LLM_'+k, '') for k in ('BASE_URL','MODEL','API_KEY','PROXY')], e['EEGAGENT_LLM_CAPABILITIES'], stamp('EEGAGENT_LLM_CAPABILITIES'), e.get('EEGAGENT_LOCAL_FONTS',''), stamp('EEGAGENT_LOCAL_FONTS')]
+for value in (worker, gateway):
+    print(hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest())
+PY
+)
+export EEGAGENT_WORKER_CONFIG_ID="$(printf '%s\n' "$config_ids" | sed -n '1p')"
+export EEGAGENT_GATEWAY_CONFIG_ID="$(printf '%s\n' "$config_ids" | sed -n '2p')"
+
 service_build_id() { health "$1" | "$EEGAGENT_PYTHON" -c 'import json,sys;print(json.load(sys.stdin).get("build_id",""))' 2>/dev/null || true; }
+service_config_id() { health "$1" | "$EEGAGENT_PYTHON" -c 'import json,sys;print(json.load(sys.stdin).get("configuration_id",""))' 2>/dev/null || true; }
 
 sessions_running() { curl --noproxy '*' -fsS "$gateway_url/sessions" 2>/dev/null | grep -q '"running":true'; }
 
 service_action() {
     ACTION=start
     health "$2" >/dev/null || return 0
-    if [ "$(service_build_id "$2")" = "$3" ]; then
+    if [ "$(service_build_id "$2")" = "$3" ] && [ "$(service_config_id "$2")" = "$4" ]; then
         ACTION=reuse; echo "$1 已在运行，复用"; return
     fi
     if sessions_running; then
@@ -151,8 +167,8 @@ service_action() {
 
 wait_down() { for _ in $(seq 1 "$2"); do health "$1" >/dev/null || return 0; sleep 1; done; }
 
-service_action gateway "$gateway_url" "$EEGAGENT_GATEWAY_BUILD_ID"; gateway_action=$ACTION
-service_action worker "$EEGAGENT_WORKER_URL" "$EEGAGENT_WORKER_BUILD_ID"; worker_action=$ACTION
+service_action gateway "$gateway_url" "$EEGAGENT_GATEWAY_BUILD_ID" "$EEGAGENT_GATEWAY_CONFIG_ID"; gateway_action=$ACTION
+service_action worker "$EEGAGENT_WORKER_URL" "$EEGAGENT_WORKER_BUILD_ID" "$EEGAGENT_WORKER_CONFIG_ID"; worker_action=$ACTION
 
 if [ "$gateway_action" = restart ]; then stop_service gateway; wait_down "$gateway_url" 10; fi
 if [ "$worker_action" = restart ]; then stop_service worker; wait_down "$EEGAGENT_WORKER_URL" 10; fi

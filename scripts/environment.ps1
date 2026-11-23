@@ -65,7 +65,9 @@ function Get-EFAgentConfigId($Value) {
 $taskRegistryTime = (Get-Item -LiteralPath $env:EEGAGENT_MODEL_REGISTRY).LastWriteTimeUtc.Ticks
 $taskCapabilityTime = (Get-Item -LiteralPath $env:EEGAGENT_LLM_CAPABILITIES).LastWriteTimeUtc.Ticks
 $taskFontTime = if ($env:EEGAGENT_LOCAL_FONTS) { (Get-Item -LiteralPath $env:EEGAGENT_LOCAL_FONTS).LastWriteTimeUtc.Ticks } else { 0 }
-$env:EEGAGENT_WORKER_CONFIG_ID = Get-EFAgentConfigId @($taskStorage,$env:EEGAGENT_DATA_DIRS,$env:EEGAGENT_KNOWLEDGE_DIR,$env:EEGAGENT_MODEL_REGISTRY,$taskRegistryTime,$taskWorkerUrl,$env:EEGAGENT_PYTHON)
+$taskRetrievalConfig = [ordered]@{}
+Get-ChildItem Env: | Where-Object { $_.Name -match '^EEGAGENT_(EMBED_|RERANK_|OCR(?:_|$))' } | Sort-Object Name | ForEach-Object { $taskRetrievalConfig[$_.Name] = $_.Value }
+$env:EEGAGENT_WORKER_CONFIG_ID = Get-EFAgentConfigId @($taskStorage,$env:EEGAGENT_DATA_DIRS,$env:EEGAGENT_KNOWLEDGE_DIR,$env:EEGAGENT_MODEL_REGISTRY,$taskRegistryTime,$taskWorkerUrl,$env:EEGAGENT_PYTHON,$taskRetrievalConfig)
 $env:EEGAGENT_GATEWAY_CONFIG_ID = Get-EFAgentConfigId @($taskStorage,$env:EEGAGENT_SKILLS_DIR,$taskWorkerUrl,$env:EEGAGENT_LLM_BASE_URL,$env:EEGAGENT_LLM_MODEL,$env:EEGAGENT_LLM_API_KEY,$env:EEGAGENT_LLM_PROXY,$env:EEGAGENT_LLM_CAPABILITIES,$taskCapabilityTime,$env:EEGAGENT_LOCAL_FONTS,$taskFontTime)
 
 function Build-EFAgentUI {

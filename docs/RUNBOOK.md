@@ -53,6 +53,16 @@
 
 导入、关系审核和上下文补全完成后会发布知识索引版本，运行中的 worker 在下次检索时加载新内容。手动编辑资料后运行 `& .\scripts\knowledge.ps1 refresh`；有本机配置时在 `knowledge.ps1` 后添加 `-Config`。知识统计的 `revision` 与搜索结果的 `index_revision` 可用于核对更新。
 
+### 向量检索与重排
+
+配置 `EFAGENT_EMBED_BASE_URL`、`EFAGENT_EMBED_API_KEY`、`EFAGENT_EMBED_MODEL` 后启用远程向量检索（OpenAI 兼容 `/embeddings`）；`EFAGENT_EMBED_DIMENSIONS` 与 `EFAGENT_EMBED_QUERY_INSTRUCTION` 可选。`EFAGENT_RERANK_BASE_URL`、`EFAGENT_RERANK_MODEL` 启用远程重排，`EFAGENT_RERANK_MODE` 取 `blend`（默认，融合检索名次与重排名次）或 `replace`。
+
+启用远程检索会把文档摘录与提问发送给所配置的接口提供方；密钥通过本机配置加载到 worker，不进入前端或版本库。直接运行 Python 命令时需使用 `EEGAGENT_*` 变量名；`EFAGENT_*` 仅由启动脚本映射。
+
+向量保存在内存 NumPy 矩阵中并缓存于 `storage/knowledge_index/`，不需要外部向量数据库；首次构建在后台进行，`GET /knowledge` 的 `dense_ready` 为 true 前检索保持关键词+图谱。上传文档在解析后后台向量化。接口故障自动回退关键词检索，冷却约 60 秒后重试。
+
+扫描 PDF 的 OCR 由 `EFAGENT_OCR`（`off` 关闭）与 `EFAGENT_OCR_LANG`（默认使用已安装的 `chi_sim`、`eng`）控制。macOS 通过 `brew install tesseract` 安装，另需将 `chi_sim.traineddata` 放入 `$(brew --prefix)/share/tessdata/`。Windows 需安装 Tesseract 并将 `TESSDATA_PREFIX` 指向含语言包的 tessdata 目录。未安装 OCR 时仍可解析原生文字，扫描页会标记为待 OCR；单份文档最多尝试 OCR 60 页。
+
 ## 文件与交付
 
 工具读取本会话已提交附件、当前工作区、明确配置的数据目录和本会话产物；从输入框移除的暂存附件不会作为分析输入。脚本可通过 `eeg.call` 连续检查、处理并导出新结果。

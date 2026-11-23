@@ -7,8 +7,11 @@ import hashlib
 import json
 import os
 import re
+import threading
+import time
 from pathlib import Path
 
+import numpy as np
 import pymupdf
 
 from .bm25 import BM25
@@ -159,10 +162,154 @@ def session_chunks(session_id: str | None) -> list[dict]:
             for chunk in load_document(manifest_id, session_id)["chunks"]]
 
 
+_shared_embedder: object = False  # False = unresolved, None = configured off
+_document_dense_down_until = 0.0
+_vec_jobs: set[tuple[str | None, str]] = set()
+_vec_jobs_lock = threading.Lock()
+
+
+def shared_embedder():
+    """Process-wide optional embedder for uploaded-document retrieval; None when unconfigured."""
+    global _shared_embedder
+    if _shared_embedder is False:
+        from .embed import make_embedder
+        _shared_embedder = make_embedder()
+    return _shared_embedder or None
+
+
+def reset_shared_embedder() -> None:
+    global _shared_embedder, _document_dense_down_until
+    _shared_embedder = False
+    _document_dense_down_until = 0.0
+
+
+def _vectors_path(manifest_id: str, session_id: str | None) -> Path:
+    return document_dir(session_id) / f"{manifest_id}.vec.npz"
+
+
+def document_vectors(manifest_id: str, session_id: str | None):
+    """(chunk_ids, vectors) from the sidecar when it matches the configured embedder, else None."""
+    embedder = shared_embedder()
+    path = _vectors_path(manifest_id, session_id)
+    if embedder is None or not path.exists():
+        return None
+    try:
+        with np.load(path) as z:
+            if str(z["embedder"].item()) != embedder.name:
+                return None
+            ids, vectors = z["ids"], np.asarray(z["vectors"], dtype=np.float32)
+        if (ids.ndim != 1 or vectors.ndim != 2 or vectors.shape[0] != ids.shape[0]
+                or vectors.shape[1] == 0 or not np.isfinite(vectors).all()):
+            return None
+        if len({str(i) for i in ids}) != len(ids):
+            return None
+        chunk_ids = {c["chunk_id"] for c in load_document(manifest_id, session_id)["chunks"]}
+        if not chunk_ids <= {str(i) for i in ids}:
+            return None
+        return ids, vectors
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def embed_document(manifest_id: str, session_id: str | None) -> Path | None:
+    """Embed every chunk of a parsed document and write the sidecar atomically."""
+    embedder = shared_embedder()
+    if embedder is None:
+        return None
+    chunks = load_document(manifest_id, session_id)["chunks"]
+    if not chunks:
+        return None
+    texts = [f"{c['title']} › {c['section']}\n{c['text']}" for c in chunks]
+    vectors = [embedder.encode(texts[i:i + 32]) for i in range(0, len(texts), 32)]
+    matrix = np.asarray(np.vstack(vectors), dtype=np.float32)
+    matrix /= np.maximum(np.linalg.norm(matrix, axis=1, keepdims=True), 1e-9)
+    target = _vectors_path(manifest_id, session_id)
+    tmp = target.with_name(target.name + ".tmp")
+    with tmp.open("wb") as f:
+        np.savez(f, ids=np.array([c["chunk_id"] for c in chunks]), vectors=matrix,
+                 embedder=np.array(embedder.name))
+    os.replace(tmp, target)
+    return target
+
+
+def ensure_document_vectors(manifest_id: str, session_id: str | None) -> None:
+    """Start a daemon job embedding a document whose sidecar is absent or stale."""
+    if shared_embedder() is None or document_vectors(manifest_id, session_id) is not None:
+        return
+    try:
+        if not load_document(manifest_id, session_id)["chunks"]:
+            return
+    except Exception:  # noqa: BLE001
+        return
+    key = (session_id, manifest_id)
+    with _vec_jobs_lock:
+        if key in _vec_jobs:
+            return
+        _vec_jobs.add(key)
+
+    def job() -> None:
+        try:
+            embed_document(manifest_id, session_id)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[knowledge] document embedding failed {manifest_id}: {exc}")
+        finally:
+            with _vec_jobs_lock:
+                _vec_jobs.discard(key)
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def _dense_document_scores(query: str, chunks: list[dict], session_id: str | None) -> list[tuple[int, float]] | None:
+    """Top-50 (chunk position, similarity) over vectorised documents, or None when dense is unavailable."""
+    global _document_dense_down_until
+    if time.monotonic() < _document_dense_down_until:
+        return None
+    sidecars = [loaded for mid in committed_documents(session_id)
+                if (loaded := document_vectors(mid, session_id)) is not None]
+    if not sidecars:
+        return None
+    embedder = shared_embedder()
+    try:
+        qv = np.asarray(embedder.encode_query(query), dtype=np.float32)
+        if qv.ndim != 1 or not np.isfinite(qv).all() or any(vectors.shape[1] != qv.shape[0] for _, vectors in sidecars):
+            raise ValueError("document query embedding has invalid shape or values")
+    except Exception as exc:  # noqa: BLE001
+        _document_dense_down_until = time.monotonic() + 60
+        print(f"[knowledge] document dense retrieval unavailable: {exc}")
+        return None
+    pos = {row["chunk_id"]: i for i, row in enumerate(chunks)}
+    sims: list[tuple[int, float]] = []
+    for ids, vectors in sidecars:
+        scores = vectors @ qv
+        for j in range(len(ids)):
+            i = pos.get(str(ids[j]))
+            if i is not None and scores[j] > 0:
+                sims.append((i, float(scores[j])))
+    if not sims:
+        return None
+    sims.sort(key=lambda x: -x[1])
+    return sims[:50]
+
+
 def search_documents(query: str, session_id: str | None, k: int) -> list[dict]:
     chunks = session_chunks(session_id)
+    if not chunks:
+        return []
     tokens = [tokenize(f"{row['title']} {row['section']} {row['text']}") for row in chunks]
-    return [{**chunks[index], "score": round(score, 4)} for index, score in BM25(tokens).top(tokenize(query), k)]
+    sparse = BM25(tokens).top(tokenize(query), 50)
+    if shared_embedder() is None:
+        return [{**chunks[index], "score": round(score, 4)} for index, score in sparse[:k]]
+    for manifest_id in committed_documents(session_id):
+        ensure_document_vectors(manifest_id, session_id)
+    dense = _dense_document_scores(query, chunks, session_id)
+    if dense is None:
+        return [{**chunks[index], "score": round(score, 4)} for index, score in sparse[:k]]
+    fused: dict[int, float] = {}
+    for ranked in (sparse, dense):
+        for rank, (index, _) in enumerate(ranked):
+            fused[index] = fused.get(index, 0.0) + 1.0 / (60 + rank + 1)
+    return [{**chunks[index], "score": round(fused[index], 4)}
+            for index in sorted(fused, key=lambda i: -fused[i])[:k]]
 
 
 def get_document_chunk(chunk_id: str, session_id: str) -> dict | None:

@@ -14,3 +14,13 @@
 
 # 单轮分析运行上限（分钟，默认 30）
 # export EFAGENT_RUN_TIMEOUT_MINUTES="60"
+
+# 知识检索（可选）：远程向量与重排接口
+# export EFAGENT_EMBED_BASE_URL="https://api.example.com/v1"
+# export EFAGENT_EMBED_API_KEY="sk-..."
+# export EFAGENT_EMBED_MODEL="your-embedding-model"
+# export EFAGENT_EMBED_DIMENSIONS="1024"
+# export EFAGENT_EMBED_QUERY_INSTRUCTION="为以下问题生成检索向量：\n"
+# export EFAGENT_RERANK_BASE_URL="https://api.example.com/v1"
+# export EFAGENT_RERANK_MODEL="your-rerank-model"
+# export EFAGENT_RERANK_MODE="blend"
