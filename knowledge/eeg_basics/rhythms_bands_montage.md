@@ -10,6 +10,8 @@ license: 本文为原文转述与短句引用；IFCN 2017 词汇表及 2019 勘�
 
 ## 频带定义与不同文献的切分
 
+原文定位：[IFCN 2019 勘误后的 beta 定义](../papers/paper_kane2019_corrigendum.md#正文:~:text=Beta%20band)。
+
 - IFCN 2017 词汇表并按 2019 勘误修订：delta 0.1–<4 Hz（常规 EEG 的实用下限为 0.5 Hz）；theta 4–<8 Hz；alpha 8–13 Hz（含）；beta >13–30 Hz；gamma >30–80 Hz。theta 的连续区间不能等同于仅列整数的“4–7 Hz”；gamma 的词汇定义不代表当前设备或处理后的记录具有完整的 80 Hz 带宽。
 - 情感计算常用切分不同：SEED / Zheng & Lu 2015 为 delta 1–3、theta 4–7、alpha 8–13、beta 14–30、gamma 31–50；LibEER DE 为 0.5–4、4–8、8–14、14–30、30–50；TorchEEG DE 四频带为 4–8、8–14、14–31、31–49；本项目工具默认 delta 0.5–4、theta 4–8、alpha 8–13、beta 13–30、gamma 30–50。
 - 2019 勘误只修订 IFCN 的 beta 定义，不会改写 SEED 等研究各自的 14–30 Hz 协议。频带边界与端点纳入规则会影响积分；回答里写明实际边界，跨研究比较数值前先对齐。

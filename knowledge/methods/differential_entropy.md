@@ -9,12 +9,16 @@ tasks: [feature_extraction, emotion_recognition, spectral_analysis]
 
 ## 定义
 
+原文定位：[Duan 2013 高斯条件与 DE 定义，第 2 页](../papers/paper_duan2013.md#第%202%20页:~:text=Gauss%20distribution)。
+
 - 差分熵是连续随机变量的香农熵推广：h(X) = −∫ f(x) log f(x) dx。
 - 若某频带内的 EEG 片段近似高斯 N(μ, σ²)，则 h = ½·log(2πe·σ²)。固定长度、相应方差/能量定义下，DE 与对数能量有确定关系；Duan 2013 引用了 Shi 2013 的推导，并非在该文重新证明。对数变换压缩数值动态范围，不保证分类性能或时间稳定性。
 
 原文：[Duan 2013，高斯 DE 公式](https://bcmi.sjtu.edu.cn/home/blu/)；[Shi 2013，DE 与能量推导](https://bcmi.sjtu.edu.cn/home/blu/)。
 
 ## Duan 2013 的实验结果及适用范围
+
+原文定位：[Duan 2013 Table II，第 3 页](../papers/paper_duan2013.md#第%203%20页:~:text=84.22)。
 
 Duan 2013 在六名参与者的正/负情绪二分类自采实验中，使用 LDS 平滑和线性 SVM，按同一次实验前八段训练、后四段测试，报告五频带联合 DE 平均准确率 84.22%、能量谱 76.56%。这是该实验条件下的比较，不是 SEED 三分类成绩，也不是当前权重或新被试上的精度。
 

@@ -57,6 +57,8 @@ EEG 的非周期背景常随频率下降，但这不保证每段记录 delta 最
 
 ## 额叶 alpha 不对称（FAA）
 
+原文定位：[Smith 2017 左右 alpha 对数功率差与记录方法](../papers/paper_smith2017_faa_primer.md#Obtaining%20the%20best%20estimates%20of%20Frontal%20Asymmetry:%20Procedures%20for%20Data%20Collection,%20Transformation,%20and%20Reduction:~:text=ln%5Bright%5D-ln%5Bleft%5D)。
+
 - 定义：FAA = ln(右侧 alpha 功率) − ln(左侧 alpha 功率)，报告实际同源左右电极、频带、参考和处理。alpha 功率与皮层活动反向，因此：
 
   | FAA 符号 | alpha 分布 | 相对活动 | Davidson 框架中的关联 |

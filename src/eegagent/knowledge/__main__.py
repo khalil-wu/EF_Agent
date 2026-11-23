@@ -10,6 +10,7 @@
   review <doc_id> [--accept-all | --accept i,j | --reject i,j]
   contextualize <doc_id>                  LLM chunk context sidecar
   eval <qa.yaml> [-k 5]                   document hit rate, MRR, reviewed original-excerpt coverage
+  audit [--strict]                       check explicit source sections and quote anchors, offline
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("stats")
     sub.add_parser("refresh")
+    audit = sub.add_parser("audit")
+    audit.add_argument("--strict", action="store_true")
     s = sub.add_parser("search")
     s.add_argument("query")
     s.add_argument("-k", type=int, default=5)
@@ -64,6 +67,13 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("qa")
     v.add_argument("-k", type=int, default=5)
     a = ap.parse_args(argv)
+
+    if a.cmd == "audit":
+        from .audit import audit_sources
+
+        result = audit_sources()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return int(a.strict and result["n_unresolved"] > 0)
 
     if a.cmd == "refresh":
         from .chunking import knowledge_dir

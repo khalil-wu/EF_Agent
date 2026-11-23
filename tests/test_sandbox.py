@@ -190,3 +190,30 @@ print("saved", aid)
     from eegagent.worker.processing import segment_signal
 
     assert segment_signal(art["artifact_id"], window_s=2)["summary"]["n_windows"] == 10
+
+
+def test_child_environment_strips_provider_and_credential_vars(storage, monkeypatch):
+    from eegagent.worker.sandbox import child_environment
+    for name in ("EEGAGENT_EMBED_API_KEY", "EFAGENT_RERANK_API_KEY", "OPENAI_API_KEY",
+                 "AWS_SECRET_ACCESS_KEY", "HF_TOKEN", "SSH_AUTH_SOCK", "EEGAGENT_LLM_API_KEY"):
+        monkeypatch.setenv(name, "fake-marker-not-real")
+    env = child_environment()
+    for name in ("EEGAGENT_EMBED_API_KEY", "EFAGENT_RERANK_API_KEY", "OPENAI_API_KEY",
+                 "AWS_SECRET_ACCESS_KEY", "HF_TOKEN", "SSH_AUTH_SOCK", "EEGAGENT_LLM_API_KEY"):
+        assert name not in env
+    assert "PATH" in env and env["EEGAGENT_STORAGE_DIR"] == str(storage)
+
+
+def test_run_python_child_sees_no_credentials(storage, monkeypatch):
+    for name in ("EEGAGENT_EMBED_API_KEY", "EFAGENT_RERANK_API_KEY", "OPENAI_API_KEY",
+                 "AWS_SECRET_ACCESS_KEY", "HF_TOKEN", "SSH_AUTH_SOCK"):
+        monkeypatch.setenv(name, "fake-marker-not-real")
+    code = ('import os\nfrom pathlib import Path\n'
+            'markers = ("EMBED_API", "RERANK_API", "OPENAI_API_KEY", "AWS_SECRET", "HF_TOKEN",'
+            ' "SSH_AUTH_SOCK", "EEGAGENT_LLM", "EFAGENT_LLM")\n'
+            'leaked = sorted(k for k in os.environ if any(m in k for m in markers))\n'
+            'assert "PATH" in os.environ\n'
+            'Path("env_clean.txt").write_text("|".join(leaked) or "clean")')
+    r = run_python(code, session_id="ses_env_scrub")
+    assert r["status"] == "ok", r.get("error")
+    assert (storage / "scratch" / "ses_env_scrub" / "env_clean.txt").read_text() == "clean"

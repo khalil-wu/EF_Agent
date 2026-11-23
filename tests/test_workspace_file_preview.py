@@ -16,7 +16,7 @@ def test_workspace_output_preview_reads_actual_text_without_signal_registration(
     folder.mkdir()
     (folder / name).write_text(content, encoding="utf-8")
     workspace = workspaces.mount(str(folder))
-    with TestClient(app) as client:
+    with TestClient(app, base_url='http://127.0.0.1') as client:
         response = client.get(f"/workspaces/{workspace['workspace_id']}/preview", params={"path": name})
     assert response.status_code == 200, response.text
     result = response.json()

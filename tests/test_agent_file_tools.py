@@ -208,7 +208,7 @@ eeg.call("write_file", path="results/must-not-exist.md", content="late output")
         while not (scratch / "ready.txt").exists() and time.monotonic() < deadline:
             time.sleep(.05)
         assert (scratch / "ready.txt").exists()
-        stopped = TestClient(app).post(f"/sessions/{context['_session_id']}/stop").json()
+        stopped = TestClient(app, base_url='http://127.0.0.1').post(f"/sessions/{context['_session_id']}/stop").json()
         assert stopped["status"] == "stopped"
         result = future.result(timeout=5)
     assert stopped["result"] == result

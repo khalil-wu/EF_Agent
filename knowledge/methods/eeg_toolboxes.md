@@ -24,6 +24,8 @@ EEGLAB（MATLAB）本体不在本项目环境里；下面列的是 MNE 生态的
 
 ## ICA 与 ICLabel
 
+原文定位：[EEGLAB runica 默认参数，Extended-ICA 默认关闭](../references/doc_eeglab_runica.md#默认参数:~:text=DEFAULT_EXTENDED%20%3D%200)。
+
 - 算法：所核 EEGLAB runica 源码默认 extended=0；runica('extended',1) 明确启用 extended infomax。本项目使用 Picard 的 ortho=False、extended=True 配置，不能保证在所有数据上收敛更快。
 - ICLabel（Pion-Tonachini et al. 2019）把每个成分分成 7 类：Brain、Muscle、Eye、Heart、Line Noise、Channel Noise、Other。MNE-ICALabel（Li et al. 2022）是同一网络的 Python 移植。它的输入前提（源码里的检查）：平均参考、1–100 Hz 滤波、扩展 infomax 分解，并且需要电极坐标来算地形图特征。
 - 高通：Winkler2015在21人听觉oddball、FastICA/MARA与其质量指标下，1–2 Hz较好；可在高通副本拟合并把权重应用到原低截止数据，前提是通道、顺序、参考及秩一致。这不是所有任务的最优高通。[ICA高通拟合后向低截止数据迁移权重](https://depositonce.tu-berlin.de/items/36df0227-56b2-45ab-abbb-1948144580aa)。

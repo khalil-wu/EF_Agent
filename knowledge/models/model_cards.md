@@ -9,6 +9,8 @@ tasks: [emotion_recognition, data_understanding]
 
 ## CAMER（camer_deap_v1 / camer_mahnob_v1 / camer_amigos_v1 / camer_eav_v1）
 
+原文定位：[CAMER 公开 recipe 的 EEG 与面部视频输入](../references/doc_camer_recipe.md#EEG%20与面部视频输入:~:text=T%3D4)。这是公开实现材料，不代表已验证本机权重。
+
 - 以下为 CAMER 上游 README/parameters.py 的公开 recipe，不是用户服务器权重已核实的训练契约。EEG 为五带 DE、C×5；DEAP/MAHNOB/AMIGOS 1 s 非重叠窗，EAV 5 s；四个数据集均处理到 128 Hz。每个窗口均匀采样 4 帧面部 ROI 224×224、Swin-Tiny 编码，EAV 不是每秒 4 帧。
 - 通道：公开参数表 DEAP/MAHNOB 32、AMIGOS 14、EAV 30；这不证明任意原始文件顺序相同。精确 DE 的频带、滤波作用范围、对数底、基线与归一化需实际训练脚本。上游“五带 DE”不能唯一确定 LibEER/TorchEEG 的具体函数，更不能证明本工具逐窗滤波与训练一致。
 - 标签：上游四象限（EAV 五类）；配置为 five_fold_cross_trial。cross-trial 保证同 trial 不跨折，是否单被试训练或被试重叠需看 split 实现，不直接称 LOSO。实际权重的类别索引和划分采用其训练记录与登记合同。

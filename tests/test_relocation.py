@@ -1,4 +1,5 @@
 """Storage and knowledge records written under another machine's root resolve against current dirs."""
+import hashlib
 import json
 from pathlib import Path
 
@@ -70,7 +71,8 @@ def _write_paper(root: Path, source_path: str) -> Path:
     pdf.write_bytes(b"%PDF")
     doc = root / "papers" / "doc.md"
     doc.write_text("---\ntitle: 论文\ndoc_type: paper\n---\n\n## 方法\n\n滤波器设置。", encoding="utf-8")
-    side = {"path": source_path, "sha256": "ab" * 32, "format": "pdf", "name": "x.pdf", "extraction_method": "pymupdf",
+    side = {"path": source_path, "sha256": hashlib.sha256(b"%PDF").hexdigest(), "format": "pdf", "name": "x.pdf",
+            "extraction_method": "pymupdf",
             "image_content_extracted": False, "untranscribed_formula_pages": [], "verified_formula_pages": []}
     doc.with_suffix(".source.json").write_text(json.dumps(side), encoding="utf-8")
     return doc
@@ -81,9 +83,10 @@ def test_knowledge_sidecar_source_relocates_under_the_knowledge_root(tmp_path, m
     monkeypatch.setenv("EEGAGENT_STORAGE_DIR", str(storage))
     root = tmp_path / "knowledge"
     _write_paper(root, r"E:\EF_Agent\knowledge\papers\pdf\x.pdf")
+    sha = hashlib.sha256(b"%PDF").hexdigest()
     rows = [chunk.row() for chunk in load_all_chunks(root)]
-    assert rows and all(row["source_document_sha256"] == "ab" * 32 for row in rows)
-    assert (storage / "knowledge_sources" / ("ab" * 32 + ".pdf")).read_bytes() == b"%PDF"
+    assert rows and all(row["source_document_sha256"] == sha for row in rows)
+    assert (storage / "knowledge_sources" / (sha + ".pdf")).read_bytes() == b"%PDF"
 
 
 def test_knowledge_sidecar_missing_everywhere_still_yields_rows(tmp_path, monkeypatch):
@@ -91,5 +94,6 @@ def test_knowledge_sidecar_missing_everywhere_still_yields_rows(tmp_path, monkey
     monkeypatch.setenv("EEGAGENT_STORAGE_DIR", str(storage))
     root = tmp_path / "knowledge"
     _write_paper(root, r"E:\gone\papers\pdf\x.pdf")
+    sha = hashlib.sha256(b"%PDF").hexdigest()
     rows = [chunk.row() for chunk in load_all_chunks(root)]
-    assert rows and all(row["source_document_sha256"] == "ab" * 32 for row in rows)
+    assert rows and all(row["source_document_sha256"] == sha for row in rows)

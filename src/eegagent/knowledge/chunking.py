@@ -22,6 +22,14 @@ from .tokenize import tokenize
 MAX_CHUNK_CHARS = 1800
 
 
+def _matches_source(path: Path, expected_sha256: str) -> bool:
+    try:
+        with path.open("rb") as file:
+            return hashlib.file_digest(file, "sha256").hexdigest() == expected_sha256
+    except OSError:
+        return False
+
+
 def knowledge_dir() -> Path:
     return Path(os.environ.get("EEGAGENT_KNOWLEDGE_DIR", Path(__file__).resolve().parents[3] / "knowledge"))
 
@@ -98,12 +106,16 @@ class Chunk:
                 source_sha = self.source_info["sha256"]
                 source_format = self.source_info["format"]
                 source_file = directory / f"{source_sha}.{source_format}"
-                if not source_file.exists() and Path(self.source_info["path"]).exists():
-                    shutil.copyfile(self.source_info["path"], source_file)
+                source_path = Path(self.source_info["path"])
+                if not source_file.exists() and _matches_source(source_path, source_sha):
+                    shutil.copyfile(source_path, source_file)
+                source_available = _matches_source(source_file, source_sha)
                 r.update(source_document_sha256=source_sha, source_document_name=self.source_info["name"],
-                         source_original_url=f"/knowledge/documents/{source_sha}/file?format={source_format}",
+                         source_original_available=source_available,
                          extraction_method=self.source_info["extraction_method"],
                          image_content_extracted=self.source_info["image_content_extracted"])
+                if source_available:
+                    r["source_original_url"] = f"/knowledge/documents/{source_sha}/file?format={source_format}"
                 r.update(parsed_start_offset=self.parsed_start_offset, parsed_end_offset=self.parsed_start_offset + len(self.text))
                 page = re.fullmatch(r"第 (\d+) 页", self.section)
                 if page and source_format == "pdf":
@@ -112,6 +124,11 @@ class Chunk:
                         r["parse_note"] = "该页含未转写的数学公式，相关公式须查看原 PDF；附近文字不能作为公式原文。"
                     if r["page"] in self.source_info["verified_formula_pages"]:
                         r["page_has_verified_formula_transcription"] = True
+                if not source_available:
+                    r["parse_note"] = " ".join(filter(None, (
+                        r.get("parse_note"),
+                        "原始文件未找到或摘要校验失败；当前仅提供已保存的解析摘录，不提供原文件下载。",
+                    )))
         if self.meta:
             r["meta"] = self.meta
         if score is not None:
@@ -211,9 +228,9 @@ def chunk_markdown(path: Path, doc_type: str = "note", root: Path | None = None)
                       license=str(meta.get("license", "")), meta=extra, context=str(ctx.get(cid, "")),
                       document_text=document_text, document_sha256=document_sha256, source_info=source_info, parsed_start_offset=parsed_start,
                       source_refs=[f"{doc}#{unquote(section)}" for doc, section in re.findall(
-                          r"\]\((?:\.\./)+(?:papers|references)/([\w-]+)\.md#([^\)]+)\)", part)],
+                          r"\]\((?:\.\./)+(?:papers|references)/([\w-]+)\.md#([^\)]+)\)", piece)],
                       source_labels={f"{doc}#{unquote(section)}": label for label, doc, section in re.findall(
-                          r"\[([^\]]+)\]\((?:\.\./)+(?:papers|references)/([\w-]+)\.md#([^\)]+)\)", part)})
+                          r"\[([^\]]+)\]\((?:\.\./)+(?:papers|references)/([\w-]+)\.md#([^\)]+)\)", piece)})
             c.tokens = tokenize(c.index_text)
             chunks.append(c)
     return chunks

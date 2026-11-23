@@ -57,6 +57,8 @@
 
 配置 `EFAGENT_EMBED_BASE_URL`、`EFAGENT_EMBED_API_KEY`、`EFAGENT_EMBED_MODEL` 后启用远程向量检索（OpenAI 兼容 `/embeddings`）；`EFAGENT_EMBED_DIMENSIONS` 与 `EFAGENT_EMBED_QUERY_INSTRUCTION` 可选。`EFAGENT_RERANK_BASE_URL`、`EFAGENT_RERANK_MODEL` 启用远程重排，`EFAGENT_RERANK_MODE` 取 `blend`（默认，融合检索名次与重排名次）或 `replace`。
 
+可运行 python -m eegagent.knowledge audit --strict 离线检查知识卡片引用的文档、章节和原句是否仍能定位；缺失解析文档、章节或原句时会报告，而不是悄悄改引用。原论文、上游代码和私有资料并非全部随仓库分发，新机器需按许可导入；原文件丢失或摘要不符时只提供已保存的解析摘录。文本能定位不代表科学结论自动验证。
+
 启用远程检索会把文档摘录与提问发送给所配置的接口提供方；密钥通过本机配置加载到 worker，不进入前端或版本库。直接运行 Python 命令时需使用 `EEGAGENT_*` 变量名；`EFAGENT_*` 仅由启动脚本映射。
 
 向量保存在内存 NumPy 矩阵中并缓存于 `storage/knowledge_index/`，不需要外部向量数据库；首次构建在后台进行，`GET /knowledge` 的 `dense_ready` 为 true 前检索保持关键词+图谱。上传文档在解析后后台向量化。接口故障自动回退关键词检索，冷却约 60 秒后重试。
@@ -85,9 +87,22 @@ EDF 导出保留可精确表示的采样时钟与样本数；需要补齐记录�
 
 `execution_ready` 表示执行配置可用；`evaluation` 单独保存划分协议、checkpoint 选择依据及独立评估状态。若 `checkpoint_selection: test_accuracy`，结果会标记 `test_selected`，仍可运行并保留方法记录。重新独立评估后再更新该证据；软件测试不会替代模型评估。
 
+## 本地安全边界
+
+本应用是单用户本地应用：网关与 worker 只应监听回环地址，并拒绝非本机 `Host`、跨来源 `Origin` 与跨站 `Sec-Fetch-Site: cross-site` 请求（403），用于抵御浏览器跨域调用与 DNS 重绑定。这不提供容器级隔离——同一用户下的恶意 Python 包、浏览器扩展或本地进程不在防护范围内；不要把服务绑定到局域网或公网地址。`run_python` 子进程会剥离 `EEGAGENT_*`/`EFAGENT_*` 中的 LLM、嵌入与重排配置及常见凭据变量。
+
 ## 验证
 
-访问 `/health` 检查网关和 worker 连接。开发检查：
+访问 `/health` 检查网关和 worker 连接。验证协议与验收口径见 [docs/VALIDATION.md](VALIDATION.md)。干净环境装全量依赖并自检：
+
+```bash
+python -m pip install -e ".[worker,toolbox,knowledge,test]"
+./scripts/start.sh doctor      # 先加载 settings.local.sh 再体检；--json / --strict
+```
+
+直接运行 `python -m eegagent.doctor` 检查的是当前 shell 环境（`EFAGENT_*` 别名按启动器规则覆盖同名 `EEGAGENT_*`）；`start.sh doctor` 会先应用本机配置再执行同一检查。Windows 等价命令：`. .\scripts\environment.ps1; & $env:EEGAGENT_PYTHON -m eegagent.doctor`。doctor 只做本地检查，不访问网络也不输出配置值；FFmpeg/Tesseract 缺失为警告，不影响纯 EEG 使用。
+
+开发检查：
 
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -e ".[test]"

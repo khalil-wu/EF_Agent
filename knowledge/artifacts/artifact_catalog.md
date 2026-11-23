@@ -47,6 +47,8 @@ tasks: [artifact_quality, preprocess, spectral_analysis, emotion_recognition]
 
 ## 处理方法与出处
 
+原文定位：[Chang 2020 第 19 页，ASR cutoff 20–30 的研究结果](../papers/paper_chang2020.md#第%2019%20页:~:text=20%20and%2030)；[Winkler 2015 第 5 页，将 ICA 权重应用于未滤波数据](../papers/paper_winkler2015_highpass.md#第%205%20页:~:text=the%20learned%20weights%20can%20be%20applied%20to%20the%20unfiltered%20data)。适用条件与局限按下文和完整原文解释。
+
 - 滤波：高通可衰减慢漂移，陷波针对特定工频，低通可限制高频肌电；截止与滤波器影响目标信号。眨眼与低频脑活动、肌电与 beta/gamma 的频谱重叠，不能靠选一个频带保证分离。
 - 剔除：按窗口幅值或统计量剔除坏段；简单可靠，代价是丢数据。
 - ICA：Jung 2000 的分离方法依赖线性混合、统计独立和近似稳定的空间分布；成分可能混合脑与伪迹活动，有效秩和电极覆盖限制可分离源数。不能以统一16通道或N/n²比例保证可靠性。本项目 ICA+ICLabel 的最低8个可定位EEG通道和剔除阈值属于工程策略，报告实际拟合、成分标签与移除结果。[Jung 原文 pp173–176](https://sccn.ucsd.edu/~jung/pdf/PSY00.pdf)

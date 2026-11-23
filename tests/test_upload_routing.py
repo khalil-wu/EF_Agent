@@ -56,7 +56,7 @@ def test_chinese_protocol_text_is_a_readable_document(uploads, encoding):
     assert manifest["modality"] == "document"
     assert "采样率：250 Hz" in attachments.read_document(manifest["manifest_id"])["pages"][0]["text"]
     from eegagent.worker.app import app
-    with TestClient(app) as client:
+    with TestClient(app, base_url='http://127.0.0.1') as client:
         preview = client.get(f"/manifests/{manifest['manifest_id']}/preview")
     assert preview.status_code == 200
     assert "采样率：250 Hz" in preview.json()["content"]

@@ -9,6 +9,8 @@ tasks: [emotion_recognition, compare_conditions, data_understanding, report]
 
 ## 先定义要推广到谁
 
+原文定位：[LibEER 基准论文第 5 页，将不同 session 视为 distinct subjects 的定义](../papers/paper_libeer_benchmark.md#第%205%20页:~:text=distinct%20subjects)。
+
 | 使用目标 | 测试集必须隔离的单位 | 可以支持的结论 |
 | --- | --- | --- |
 | 已校准用户的新试次 | trial，必要时按时间隔离 | 该用户的新试次预测 |
@@ -30,6 +32,8 @@ LibEER v3 第2页明确同trial窗口归入同一训练或测试分区。[原文
 
 ## 评分单位与样本量
 
+原文定位：[Varoquaux 2018 第 1 页，跨折标准误低估不确定性](../papers/paper_varoquaux2018_cv.md#第%201%20页:~:text=standard%20error%20across%20folds)。
+
 先保存逐窗输出，再按真实标签单位评分。只有试次结束自评时，可以报告试次类别；不能声称逐秒情绪准确率。窗口概率平均、logit平均与多数投票是不同规则，在验证集选择并冻结，同时报告无效窗及可用时长。比较模型与Agent时保持同一标签、输入范围、评分单位和聚合规则。
 
 同时报告person、session、trial和window数量。用被试为主要独立单位的任务，可以给每被试指标、被试间分布，以及按被试重采样的不确定性估计；少量被试下仍应明确区间稳定性的限制。成对方法比较保持相同被试/试次及划分，随机种子重复说明训练波动，不能把多seed当新增人群样本。折之间训练集重叠，折分数的标准误不能直接当总体性能的可靠置信区间。
@@ -45,6 +49,8 @@ Varoquaux的证据主要来自神经影像数据与模拟，文中“100样本�
 Ovadia第4页指出恒定输出类别边际概率可能校准良好却没有信息；NLL/Brier为proper scoring rules，ECE不是。[原文：校准而无信息](https://arxiv.org/abs/1906.02530v2)。涉及原文公式时查看PDF相应页，不把自动解析的残缺公式当完整定义。
 
 ## 部署置信度与分布变化
+
+原文定位：[Ovadia 2019 第 7 页，分布变化下的校准限制](../papers/paper_ovadia2019_uncertainty.md#第%207%20页:~:text=does%20not%20guarantee%20calibration%20under%20distributional%20shift)。
 
 模型softmax最高值是置信分数，LLM的主观确定程度是另一种信息。只有在适用人群/任务的独立标注数据上检验过，才能解释其正确率关系。temperature scaling按独立校准集拟合正温度；它调整概率，通常保持类别argmax，不自动提高分类准确率。
 

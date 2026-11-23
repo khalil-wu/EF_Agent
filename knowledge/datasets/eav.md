@@ -10,6 +10,8 @@ license: 论文 CC BY 4.0；数据按其发布条款
 
 ## 采集
 
+原文定位：[EAV 原论文第 6 页，500 Hz、乳突参考与电极](../papers/paper_lee2024_eav.md#第%206%20页:~:text=mastoids)。
+
 - 42 名被试，基于提示的对话场景，五种情绪：neutral、anger、happiness、sadness、calmness；每人 200 次交互（听 100 次、说 100 次），共 8400 次。
 - EEG：Brain Products BrainAmp，30 通道 Ag/AgCl，500 Hz，乳突参考，AFz 接地；电极顺序 Fp1 Fp2 F7 F3 Fz F4 F8 FC5 FC1 FC2 FC6 T7 C3 Cz C4 T8 CP5 CP1 CP2 CP6 P7 P3 Pz P4 P8 PO9 O1 Oz O2 PO10。
 - 音频与面部视频同步记录。

@@ -28,7 +28,7 @@ TMP = tempfile.gettempdir()
 
 
 def _norm(p) -> str:
-    return os.path.normcase(os.path.abspath(os.fspath(p)))
+    return os.path.normcase(os.path.realpath(os.fspath(p)))
 
 
 def _under(p: str, roots) -> bool:

@@ -159,6 +159,7 @@ def run_one(gw: str, task: dict, utterance_idx: int, fixture_dir: Path, verbose=
     t0 = time.time()
     events: list[dict] = []
     answers: list[str] = []
+    run_errors: list[str] = []
     for text in turns:
         r = requests.post(f"{gw}/sessions/{ses}/messages", json={"text": text, "mode": "readonly"}, stream=True, timeout=900)
         r.raise_for_status()
@@ -167,7 +168,11 @@ def run_one(gw: str, task: dict, utterance_idx: int, fixture_dir: Path, verbose=
             events.append(ev)
             if ev["type"] == "message_delta":
                 ans += ev.get("text", "")
+            if ev["type"] == "error":
+                run_errors.append(ev.get("text") or "Agent execution failed")
         answers.append(ans)
+        if run_errors:
+            break
     secs = time.time() - t0
     final = answers[-1]
 
@@ -257,7 +262,8 @@ def run_one(gw: str, task: dict, utterance_idx: int, fixture_dir: Path, verbose=
     assessment_ok = all(result["passed"] for result in assessment_details) if assessment_details else None
 
     row = {
-        "task": task["id"], "level": task["level"], "fixture": fixture_name, "utterance": turns[-1], "session": ses,
+        "task": task["id"], "level": task["level"], "fixture": fixture_name, "utterance": turns[len(answers) - 1], "session": ses,
+        "error": "; ".join(dict.fromkeys(run_errors)) if run_errors else None,
         "feasibility_truth": truth, "feasibility_ok": feas_ok, "limitation_ok": limitation_ok,
         "required_coverage": round(coverage, 3), "extraneous_calls": len(extraneous), "extraneous": extraneous,
         "forbidden_hit": forbidden_hit, "precondition_viol": blocked, "fabricated_refs": fabricated,
@@ -355,7 +361,7 @@ def render_md(summary: dict, rows: list[dict], model: str) -> str:
     return "\n".join(out) + "\n"
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--gateway", default="http://localhost:8080")
     ap.add_argument("--tasks", default=str(Path(__file__).with_name("tasks.yaml")))
@@ -365,9 +371,13 @@ def main():
     ap.add_argument("--out", default=str(Path(__file__).with_name("out")))
     ap.add_argument("--report", default="", help="re-render report from an existing results.jsonl")
     ap.add_argument("-v", action="store_true")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     out = Path(args.out)
+    if args.runs < 1:
+        ap.error("--runs must be at least 1")
+    if not args.report and (out / "results.jsonl").exists():
+        ap.error("results.jsonl already exists; use a fresh --out directory or --report to render saved results")
     out.mkdir(parents=True, exist_ok=True)
     if args.report:
         rows = [json.loads(l) for l in Path(args.report).read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -377,6 +387,8 @@ def main():
         tasks = yaml.safe_load(Path(args.tasks).read_text(encoding="utf-8"))
         if args.only:
             tasks = [t for t in tasks if t["id"].startswith(args.only) or t["level"] == args.only]
+        if not tasks:
+            ap.error("no tasks matched --only; no evaluation was performed")
         fixture_dir = out / "fixtures"
         fixture_dir.mkdir(exist_ok=True)
         rows = []

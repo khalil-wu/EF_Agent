@@ -48,7 +48,16 @@ cp scripts/settings.local.sh.example scripts/settings.local.sh   # 填写模型�
 
 ## 开发
 
-仓库已包含构建好的前端。修改界面时，需要 Node.js 22.12+：
+仓库已包含构建好的前端。干净环境装全量依赖（含测试）并自检：
+
+```bash
+python -m pip install -e ".[worker,toolbox,knowledge,test]"
+./scripts/start.sh doctor            # 应用本机配置后自检；--json 机器可读，--strict 时警告也返回非零
+```
+
+doctor 只做本地检查，不访问网络；FFmpeg 缺失仅影响音视频预览，Tesseract 缺失仅影响扫描件 OCR（安装方法与 Windows 用法见[运行说明](docs/RUNBOOK.md)）。
+
+修改界面时，需要 Node.js 22.12+：
 
 ```powershell
 cd frontend

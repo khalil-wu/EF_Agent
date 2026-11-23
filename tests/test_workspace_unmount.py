@@ -15,7 +15,7 @@ def test_removing_workspace_preserves_files_history_and_remount_settings(tmp_pat
     record = workspaces.mount(str(folder), "采集数据")
     identifier = record["workspace_id"]
     workspaces.operations(identifier, "exclude", [source.name])
-    client = TestClient(worker.app)
+    client = TestClient(worker.app, base_url='http://127.0.0.1')
     response = client.delete(f"/workspaces/{identifier}")
     assert response.status_code == 200
     assert client.get("/workspaces").json() == []
@@ -35,7 +35,7 @@ def test_removing_an_unavailable_folder_needs_no_access_to_the_source(tmp_path, 
     folder.mkdir()
     record = workspaces.mount(str(folder))
     folder.rmdir()
-    client = TestClient(worker.app)
+    client = TestClient(worker.app, base_url='http://127.0.0.1')
     assert client.delete(f"/workspaces/{record['workspace_id']}").status_code == 200
     assert workspaces.list_workspaces() == []
     assert client.delete("/workspaces/ws_000000000000").status_code == 404
@@ -51,7 +51,7 @@ def test_catalog_marks_workspaces_whose_folder_is_missing(tmp_path, monkeypatch)
     missing.mkdir()
     gone = workspaces.mount(str(missing), "离线盘")
     missing.rmdir()
-    client = TestClient(worker.app)
+    client = TestClient(worker.app, base_url='http://127.0.0.1')
     catalog = {item["workspace_id"]: item for item in client.get("/workspaces").json()}
     assert catalog[live["workspace_id"]]["available"] is True
     assert catalog[gone["workspace_id"]]["available"] is False

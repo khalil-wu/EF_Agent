@@ -233,5 +233,5 @@ func main() {
 		displayAddr = "localhost" + displayAddr
 	}
 	fmt.Printf("EFAgent gateway on http://%s (model=%s, worker=%s)\n", displayAddr, model, workerURL)
-	log.Fatal(http.ListenAndServe(addr, srv.Routes()))
+	log.Fatal(http.ListenAndServe(addr, server.LocalOnly(srv.Routes())))
 }

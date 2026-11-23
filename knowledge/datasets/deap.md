@@ -17,6 +17,8 @@ license: 数据需向 QMUL 申请 EULA；本文只记录公开规范
 
 ## 预处理版格式（data_preprocessed_python）
 
+原文定位：[LibEER Python 发行包读取、128 Hz 与 3 秒基线](../references/doc_libeer_deap.md#Python%20发行包读取:~:text=pre_time%20%3D%203)；[DEAP 官方预处理 README 的 4.0–45.0 Hz 带通](../references/doc_deap_official_readme.md#A%20Dataset%20for%20Emotion%20Analysis%20using%20EEG,%20Physiological%20and%20Video%20Signals:~:text=4.0-45.0Hz)。
+
 - 文件 s01.dat … s32.dat，每个是 pickle dict：data 形状 40 × 40 × 8064（trial × channel × sample），其中 32 EEG + 8 外周；labels 40 × 4 按 valence、arousal、dominance、liking 排列。这是该 Python 发行包约定，不是原始采集数组。
 - 官方 readme 记载：128 Hz、EOG 去除、4–45 Hz 带通、CAR、Geneva 通道顺序、按 Experiment_id 排序。8064/128=63 s；第三方 reader 通常取前 3 s 为基线。官方原句“60 second trials and a 3 second pre-trial baseline removed”与同页数组长度须一起读；不能据 removed 推定数组只剩60 s或已经执行某种逐点/特征基线减法。
 - 前 32 EEG 通道按 Geneva 顺序：Fp1 AF3 F3 F7 FC5 FC1 C3 T7 CP5 CP1 P3 P7 PO3 O1 Oz Pz Fp2 AF4 Fz F4 F8 FC6 FC2 Cz C4 T8 CP6 CP2 P4 P8 PO4 O2；33–40 为 hEOG、vEOG、zEMG、tEMG、GSR、respiration、plethysmograph、temperature。官方 readme 未明示预处理数组数值单位，不能从 BioSemi BDF 的 µV 推定任意 pickle 数组也储存 µV。各信号量纲与换算分别登记。

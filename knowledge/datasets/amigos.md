@@ -18,6 +18,8 @@ license: 需向 QMUL 申请；本文只记录公开规范
 
 ## 预处理版格式
 
+原文定位：[AMIGOS 官方 README 的 20 秒片段与外部标注列](../references/doc_amigos_official_readme.md#A%20Dataset%20for%20Affect,%20Personality%20and%20Mood%20Research%20on%20Individuals%20and%20Groups:~:text=segments%20%2820%20second%20clips%29%20x%20channels)。
+
 - 官方原始 EEG 为128 Hz，25列矩阵第4–17列为14 EEG道、单位µV；ECG原采集256 Hz、GSR128 Hz。预处理 `joined_data{1,YY}` 为 samples×17：前14 EEG，15/16为ECG Right/Left，17为GSR。EEG已按128 Hz、CAR、4–45 Hz处理，trial按Video_Number排序。
 - `labels_selfassessment{1,YY}` 为1×12：arousal、valence、dominance、liking、familiarity、neutral、disgust、happiness、surprise、anger、fear、sadness。`labels_ext_anotation{1,YY}`（官方拼写）为ZZ×3：segment_index、valence、arousal，对应20 s片段；readme没有规定三标注者聚合算子，不能据形状推成平均或投票。
 - 官方具体 EEG 处理表未明示 EOG 去除、基线扣除或标准化；下载页总述不代替逐信号规范。论文第10页另描述CAR、2 Hz高通、BSS、3–47 Hz PSD的特征基线分析，与发行4–45 Hz并存。版本和实际处理历史分别登记。

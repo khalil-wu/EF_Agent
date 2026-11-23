@@ -117,6 +117,17 @@ def _preexec():  # POSIX only: cap address space
         pass
 
 
+_PRIVATE_ENV = re.compile(r'(?:^|_)(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?)(?:_|$)', re.I)
+
+
+def child_environment() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items()
+            if not k.startswith(('EEGAGENT_LLM', 'EFAGENT_LLM', 'EEGAGENT_EMBED', 'EFAGENT_EMBED',
+                                 'EEGAGENT_RERANK', 'EFAGENT_RERANK'))
+            and not _PRIVATE_ENV.search(k)
+            and k not in ('SSH_AUTH_SOCK', 'SSH_ASKPASS', 'GIT_ASKPASS')}
+
+
 def run_python(code: str, session_id: str | None, timeout_s: float | None = None, label: str | None = None,
                workspace_id: str | None = None) -> dict:
     from eegagent.worker import script_jobs
@@ -176,7 +187,7 @@ def _run_python(code: str, session_id: str, timeout_s: float | None, label: str 
     cfg_path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
     before = _snapshot(scratch)
 
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("EEGAGENT_LLM", "EFAGENT_LLM"))}
+    env = child_environment()
     tmp_dir = scratch / ".tmp"
     tmp_dir.mkdir(exist_ok=True)
     home = scratch / ".home"

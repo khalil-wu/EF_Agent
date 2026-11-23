@@ -31,6 +31,8 @@ imcoh在0°和180°相位关系下为0。wPLI以虚部幅值加权，能减弱PL
 
 ## 去偏值、平方目标与有效样本数
 
+原文定位：[Vinck 2011 第 11 页，去偏 wPLI 的 weighting bias](../papers/paper_vinck2011_wpli.md#第%2011%20页:~:text=weighting%20bias)。
+
 wPLI²去偏估计排除同一观测的自配对项，可写为 ((ΣIj)²−ΣIj²)/((Σ|Ij|)²−ΣIj²)，其中Ij为各观测交叉谱虚部。其有限样本值可以为负；这不表示“负连接”，也不应为美化数值自动截为0。该估计是相合的，但归一化权重由样本自身决定，因此仍有weighting bias。原文具体解释偏差来自按样本权重W归一化，称其为“weighting bias”。[wPLI平方去偏并非完全无偏：有限样本weighting bias，第11页](https://repository.ubn.ru.nl/bitstream/handle/2066/115486/115486.pdf?sequence=1&isAllowed=y)
 
 PPC估计PLV²；去掉采样偏差不等于去掉共同源、共同参考或容积传导。Vinck2011的OFC示例中，PPC的部分提高可能来自远源投影及共同参考，未被wPLI分析确认。[p1564，PDF第18页](https://repository.ubn.ru.nl/bitstream/handle/2066/115486/115486.pdf?sequence=1&isAllowed=y)；[MNE0.9.0 Notes](https://mne.tools/mne-connectivity/stable/generated/mne_connectivity.spectral_connectivity_epochs.html#notes)

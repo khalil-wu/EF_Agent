@@ -10,6 +10,8 @@ license: 需在 mahnob-db.eu 申请 EULA；本文只记录公开规范
 
 ## 采集
 
+原文定位：[MAHNOB 官方手册第 12 页，情绪实验的 15 秒 neutral 基线](../references/doc_mahnob_official_manual.md#第%2012%20页:~:text=15%20seconds%20neutral%20clip)。
+
 - 招募30人（17女/13男，19–40岁），论文分析排除P9/P12/P15后使用27人（16女/11男）。CAMER25人是另一个筛选子集。
 - 原论文物理第2页Table1给32道EEG256 Hz、外周256 Hz、6摄像机60 fps、眼动60 Hz；该嵌入图像表已目视核对，不是自动文本提取结果。第4页的1024→256 Hz明确描述ECG/GSR/呼吸/温度，不能推为EEG原采集1024 Hz。实际输入采样率仍读BDF头。
 - 情绪诱发实验：20 段电影片段（34.9–117 s），每段前后有中性片段；隐式标注实验：图片/视频加正确或错误标签。
@@ -18,6 +20,8 @@ license: 需在 mahnob-db.eu 申请 EULA；本文只记录公开规范
 原文：[招募与排除](https://mahnob-db.eu/hci-tagging/media/uploads/taffcsi-2010-11-0112-2.pdf)；[采集统计表（查看原PDF表图）](https://mahnob-db.eu/hci-tagging/media/uploads/taffcsi-2010-11-0112-2.pdf)；[外周降采样](https://mahnob-db.eu/hci-tagging/media/uploads/taffcsi-2010-11-0112-2.pdf)。
 
 ## 文件结构
+
+原文定位：[MAHNOB 官方手册第 13 页，tagging 实验的三个状态脉冲](../references/doc_mahnob_official_manual.md#第%2013%20页:~:text=three%20pulses)。
 
 - Sessions/<id>/session.xml、EEG/外周BDF和视频。官方手册第5页规定BDF47道、最后一道Status；情绪刺激开始/停止对应 **0→16上升沿**。tagging有start/tag/end三个脉冲，第二脉冲32/48/64/80编码标签正确性与反馈（手册第17页Table11）。TorchEEG前两个事件的reader约定不能覆盖tagging记录。
 - 手册第6页Table3列EEG1–32单位µV与Geneva顺序（同DEAP预处理版）。实际BDF physical dimension/刻度仍逐通道读头；MNE get_data() EEG返回V，换µV乘1e6；to_data_frame()默认已换µV。

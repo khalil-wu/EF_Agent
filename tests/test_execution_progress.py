@@ -12,7 +12,7 @@ def test_worker_streams_real_stages_before_the_terminal_result(monkeypatch):
         progress.report("inference", "远程推理中")
         return {"status":"ok", "summary":{"prediction_count":2}}
     monkeypatch.setattr(app, "run_tool", tool)
-    with TestClient(app.app).stream("POST", "/tools/run_model/events", json={"args":{}}) as response:
+    with TestClient(app.app, base_url='http://127.0.0.1').stream("POST", "/tools/run_model/events", json={"args":{}}) as response:
         import json
         events = [json.loads(line) for line in response.iter_lines()]
     assert [event["type"] for event in events] == ["progress", "progress", "result"]

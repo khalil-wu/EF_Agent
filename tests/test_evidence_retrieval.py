@@ -6,6 +6,20 @@ from eegagent.knowledge.chunking import chunk_markdown
 from eegagent.knowledge.ingest import extract_graph, review
 
 
+def test_split_note_cannot_borrow_a_different_chunks_source_link(tmp_path):
+    note = tmp_path / "note.md"
+    note.write_text(
+        "---\ndoc_id: note\ntitle: Note\n---\n\n## Measurement\n\n"
+        "[Source](../papers/paper_x.md#Methods:~:text=original%20measurement)\n\n"
+        + "First passage. " * 90 + "\n\n" + "Different unlinked claim. " * 90,
+        encoding="utf-8",
+    )
+    chunks = chunk_markdown(note)
+    assert len(chunks) >= 2
+    assert chunks[0].source_refs == ["paper_x#Methods:~:text=original measurement"]
+    assert all(not chunk.source_refs and not chunk.source_labels for chunk in chunks[1:])
+
+
 def test_references_expose_their_role_and_content_without_verifying_record_origin(tmp_path, monkeypatch):
     root = tmp_path / "knowledge"
     root.mkdir()

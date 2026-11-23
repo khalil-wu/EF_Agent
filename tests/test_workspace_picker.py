@@ -12,7 +12,7 @@ def test_native_folder_selection_mounts_original_absolute_directory(tmp_path, mo
     original = folder / "recording.npz"
     original.write_bytes(b"original acquisition fixture")
     monkeypatch.setattr(worker, "pick_directory", lambda: str(folder.resolve()))
-    response = TestClient(worker.app).post("/workspaces/pick", json={})
+    response = TestClient(worker.app, base_url='http://127.0.0.1').post("/workspaces/pick", json={})
     assert response.status_code == 200
     record = response.json()
     assert record["root"] == str(folder.resolve())
@@ -28,7 +28,7 @@ def test_native_folder_selection_cancel_preserves_workspace_catalog(tmp_path, mo
     folder.mkdir()
     existing = workspaces.mount(str(folder))
     monkeypatch.setattr(worker, "pick_directory", lambda: None)
-    response = TestClient(worker.app).post("/workspaces/pick", json={})
+    response = TestClient(worker.app, base_url='http://127.0.0.1').post("/workspaces/pick", json={})
     assert response.status_code == 200 and response.json() == {"cancelled": True}
     assert workspaces.list_workspaces() == [existing]
 
@@ -40,7 +40,7 @@ def test_native_folder_selection_reports_picker_failure(tmp_path, monkeypatch):
         raise RuntimeError("native dialog could not initialize")
 
     monkeypatch.setattr(worker, "pick_directory", unavailable)
-    response = TestClient(worker.app).post("/workspaces/pick", json={})
+    response = TestClient(worker.app, base_url='http://127.0.0.1').post("/workspaces/pick", json={})
     assert response.status_code == 500
     assert response.json() == {"error": "native dialog could not initialize"}
     assert workspaces.list_workspaces() == []

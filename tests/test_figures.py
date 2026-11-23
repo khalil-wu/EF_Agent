@@ -414,3 +414,28 @@ def test_processed_plot_ranges_remain_source_seconds_and_retain_original_offset(
         assert "source start" in result["summary"]["time_axis"]
         if kind != "psd":
             assert list(captured_plot["fig"].axes[0].get_xlim()) == [2.0, 6.0]
+
+
+def test_log_axis_minus_and_chinese_text_render_without_missing_glyphs(tmp_path, caplog):
+    """Log-formatter mathtext must come from DejaVu (U+2212), with CJK as fallback."""
+    import logging
+
+    from eegagent.worker import figures
+
+    plt = figures.style()
+    fig, ax = figures.figure()
+    f = np.logspace(0, 2, 200)
+    ax.loglog(f, 1e-4 * f ** -1.3, label="功率谱密度")
+    ax.set_ylim(1e-8, 1e2)
+    ax.set_xlabel("频率 (Hz)")
+    ax.set_ylabel("功率谱密度 (µV²/Hz)")
+    ax.set_title("对数功率谱 − 负指数刻度")
+    ax.legend()
+    with caplog.at_level(logging.WARNING, logger="matplotlib"):
+        out = figures.save_files(fig, tmp_path / "psd.png")
+    plt.close(fig)
+    glyph_logs = [r.getMessage() for r in caplog.records
+                  if "glyph" in r.getMessage().lower() or "missing from font" in r.getMessage().lower()]
+    assert glyph_logs == []
+    for ext in ("png", "svg", "pdf"):
+        assert Path(out[ext]["uri"]).stat().st_size > 2000

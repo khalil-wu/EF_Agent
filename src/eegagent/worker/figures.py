@@ -51,7 +51,8 @@ def style(profile="screen"):
              if name in installed]
     sizes = FONT_SIZES[profile]
     plt.rcParams.update({
-        "font.family": fonts[:1] + ["DejaVu Sans"], "font.size": sizes["body"], "mathtext.fontset": "dejavusans",
+        "font.family": list(dict.fromkeys(["DejaVu Sans", *fonts[:1]])), "font.size": sizes["body"],
+        "mathtext.fontset": "dejavusans",
         "axes.titlesize": sizes["title"], "axes.titleweight": "normal", "axes.titlepad": 7,
         "axes.labelsize": sizes["body"], "axes.labelpad": 4, "axes.labelcolor": "#282D33",
         "text.color": "#282D33", "axes.edgecolor": "#626870", "axes.linewidth": .65,

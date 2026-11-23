@@ -36,8 +36,10 @@ from eegagent.worker.models import list_models
 from eegagent.knowledge.documents import get_document_chunk
 from eegagent.worker import workspaces
 from eegagent.worker.folder_picker import pick_directory
+from eegagent.worker.local_security import LocalOnlyMiddleware
 
 app = FastAPI(title="EFAgent signal worker", version="0.3")
+app.add_middleware(LocalOnlyMiddleware)
 
 class WorkspaceOperation(BaseModel):
     action: Literal["exclude","include","mkdir","rename","move","trash","restore"]

@@ -7,10 +7,12 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 no_browser=0
 config=""
 command="start"
+doctor_args=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        start|stop|status) command="$1";;
+        start|stop|status|doctor) command="$1";;
         --no-browser) no_browser=1;;
+        --json|--strict) doctor_args+=("$1");;
         --config) config="${2:?--config 需要一个文件路径}"; shift;;
         *) echo "未知参数：$1" >&2; exit 2;;
     esac
@@ -91,6 +93,8 @@ case "$command" in
             echo
         done
         exit 0;;
+    doctor)
+        exec "$EEGAGENT_PYTHON" -m eegagent.doctor ${doctor_args[@]+"${doctor_args[@]}"};;
 esac
 
 if [ -z "${EEGAGENT_LLM_BASE_URL:-}" ] || [ -z "${EEGAGENT_LLM_MODEL:-}" ]; then
