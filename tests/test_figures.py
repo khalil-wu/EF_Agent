@@ -223,7 +223,7 @@ ax.plot(data[0, :128], color=eeg.colors[0])
 ax.set(xlabel="采样点", ylabel="振幅（" + eeg.amplitude_unit(steps) + "）")
 ax.set_title("首通道采样波形")
 import matplotlib.pyplot as plt
-print("FONT", plt.rcParams["font.family"][0])
+print("FONTS", ",".join(plt.rcParams["font.family"]))
 eeg.save_figure(fig, {{"method": "direct trace", "unit_note": eeg.unit_note(steps),
                       "sample_rate_note": eeg.sampling_note(steps, sr)}}, name="script_trace")
 eeg.save_figure(fig, {{"method": "direct trace"}}, name="explicit_trace",

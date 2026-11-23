@@ -100,7 +100,8 @@ labels, frozen predictions and an appropriate subject/session split.
 The CI workflow defines separate Go and Python checks on Linux, Windows and
 macOS, plus a frontend build/test and published-asset consistency check. A
 workflow being configured is not evidence that every platform has passed;
-check the actual CI run.
+check the actual CI run. CI uses the current stable Go toolchain; the `1.22`
+in `go.mod` is a language-version floor, not a recommended toolchain.
 
 The application remains local-only. Host/Origin guards reduce browser
 cross-origin and DNS-rebinding risks; stripped child environment variables do

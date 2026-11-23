@@ -10,7 +10,7 @@
 
 ## 启动
 
-需要 Python 3.11+ 和 Go 1.22+；Windows 用 PowerShell 启动，macOS / Linux 用 bash。处理视频还需要将 FFmpeg（含 `ffprobe`）加入 PATH。
+需要 Python 3.11+ 和 Go 当前稳定版（go.mod 的 1.22 是语言版本下限；新版 macOS 不应使用旧 Go 工具链）；Windows 用 PowerShell 启动，macOS / Linux 用 bash。处理视频还需要将 FFmpeg（含 `ffprobe`）加入 PATH。
 
 ```powershell
 git clone https://github.com/khalil-wu/EF_Agent.git
