@@ -7,6 +7,7 @@ import numpy as np
 import pymupdf
 import pytest
 
+from eegagent.knowledge import documents
 from eegagent.knowledge.chunking import MAX_CHUNK_CHARS, _split_long
 from eegagent.knowledge.documents import document_dir, get_document_chunk, load_document, search_documents
 from eegagent.worker.attachments import register_attachment, read_document, READ_DOCUMENT_CHARS
@@ -193,3 +194,51 @@ def test_confirmed_eeg_metadata_is_used_without_mutating_original(storage):
     np.testing.assert_allclose(values, data * 1e6)
     assert rate == 128 and names == ["Fp1", "Fp2"]
     assert original["sample_rate_hz"] is None
+
+
+def _image_only_pdf(path: Path, word: str, font_path: str, font_size: int = 64):
+    from PIL import Image, ImageDraw, ImageFont
+
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except OSError:
+        font = ImageFont.load_default(size=font_size)
+    image = Image.new("RGB", (1400, 400), "white")
+    ImageDraw.Draw(image).text((40, 150), word, font=font, fill="black")
+    png = path.with_suffix(".png")
+    image.save(png)
+    with pymupdf.open() as pdf:
+        page = pdf.new_page()
+        page.insert_image(page.rect, filename=str(png))
+        pdf.save(path)
+
+
+@pytest.mark.skipif(documents.ocr_language() is None, reason="Tesseract is not installed")
+def test_scanned_pdf_pages_are_recovered_by_ocr(storage, tmp_path):
+    path = tmp_path / "scan_ocr.pdf"
+    _image_only_pdf(path, "GAMMA BURST", "/System/Library/Fonts/Helvetica.ttc")
+    summary = documents.parse_document(path, "doc_scan1", "ses_111111")
+    assert summary["status"] == "ready" and summary["ocr_pages"] == [1]
+    chunks = load_document("doc_scan1", "ses_111111")["chunks"]
+    assert "gamma burst" in chunks[0]["text"].lower()
+    assert chunks[0]["extraction_method"] == "ocr_text"
+
+
+def test_scanned_pdf_still_needs_ocr_when_tesseract_missing(storage, tmp_path, monkeypatch):
+    monkeypatch.setattr(documents, "ocr_language", lambda: None)
+    path = tmp_path / "scan_no_ocr.pdf"
+    _image_only_pdf(path, "GAMMA BURST", "/System/Library/Fonts/Helvetica.ttc")
+    summary = documents.parse_document(path, "doc_scan2", "ses_111111")
+    assert summary["status"] == "ocr_required" and summary["pages_needing_ocr"] == [1]
+    assert summary["ocr_pages"] == []
+
+
+def test_text_pdf_reports_no_ocr_pages(storage):
+    path = storage / "uploads/ses_111111/text.pdf"
+    path.parent.mkdir(parents=True)
+    with pymupdf.open() as pdf:
+        page = pdf.new_page()
+        page.insert_text((72, 96), "原生文本" * 40)
+        pdf.save(path)
+    summary = documents.parse_document(path, "doc_text1", "ses_111111")
+    assert summary["status"] == "ready" and summary["ocr_pages"] == [] and summary["ocr_language"] is None

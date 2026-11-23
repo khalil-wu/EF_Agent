@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -56,8 +57,27 @@ def document_text(path: Path) -> str:
     return read_text(path)[0]
 
 
+OCR_MAX_PAGES = 60
+
+
+@functools.lru_cache(maxsize=None)
+def ocr_language() -> str | None:
+    """Tesseract languages for scanned pages, or None when OCR is disabled or unavailable."""
+    if os.environ.get("EEGAGENT_OCR", "").lower() in ("off", "0", "false"):
+        return None
+    if lang := os.environ.get("EEGAGENT_OCR_LANG"):
+        return lang
+    try:
+        tessdata = Path(pymupdf.get_tessdata())
+    except Exception:
+        return None
+    names = [name for name in ("chi_sim", "eng") if (tessdata / f"{name}.traineddata").exists()]
+    return "+".join(names) or None
+
+
 def parse_document(path: Path, manifest_id: str, session_id: str | None) -> dict:
     pages = []
+    lang, lang_resolved, ocr_done = None, False, 0
     if path.suffix.lower() == ".pdf":
         with pymupdf.open(path) as pdf:
             for number, page in enumerate(pdf, 1):
@@ -69,10 +89,22 @@ def parse_document(path: Path, manifest_id: str, session_id: str | None) -> dict
                 text = "\n\n".join(paragraphs)
                 table_text = [table.to_markdown() for table in tables]
                 has_images = bool(page.get_images())
+                needs_ocr, ocr = not text.strip() and not table_text and has_images, False
+                if needs_ocr and not lang_resolved:
+                    lang, lang_resolved = ocr_language(), True
+                if needs_ocr and lang and ocr_done < OCR_MAX_PAGES:
+                    ocr_done += 1
+                    try:
+                        textpage = page.get_textpage_ocr(flags=0, language=lang, dpi=200, full=True)
+                        ocr_text = page.get_text("text", textpage=textpage).strip()
+                    except Exception:
+                        ocr_text = ""
+                    if ocr_text:
+                        text, needs_ocr, ocr = ocr_text, False, True
                 pages.append({"page": number, "text": text, "tables": table_text, "has_images": has_images,
-                              "needs_ocr": not text.strip() and not table_text and has_images})
+                              "needs_ocr": needs_ocr, "ocr": ocr})
     else:
-        pages = [{"page": 1, "text": document_text(path), "tables": [], "has_images": False, "needs_ocr": False}]
+        pages = [{"page": 1, "text": document_text(path), "tables": [], "has_images": False, "needs_ocr": False, "ocr": False}]
 
     chunks = []
     for page in pages:
@@ -91,12 +123,13 @@ def parse_document(path: Path, manifest_id: str, session_id: str | None) -> dict
                                    "text": piece, "doc_type": "document", "scope": "session",
                                    "source": f"{path.name} · 第 {page['page']} 页", "manifest_id": manifest_id,
                                    "evidence_role": "document_claim", "source_kind": "user_upload",
-                                   "extraction_method": "native_table" if kind == "table" else "native_text",
+                                   "extraction_method": "native_table" if kind == "table" else "ocr_text" if page.get("ocr") else "native_text",
                                    "content_sha256": hashlib.sha256(piece.encode("utf-8")).hexdigest()})
     missing = [page["page"] for page in pages if page["needs_ocr"]]
     status = "partial" if missing and chunks else "ocr_required" if missing else "ready" if chunks else "empty"
     summary = {"status": status, "n_chunks": len(chunks), "page_count": len(pages),
                "pages_needing_ocr": missing, "pages_with_images": [page["page"] for page in pages if page["has_images"]],
+               "ocr_pages": [page["page"] for page in pages if page["ocr"]], "ocr_language": lang or None,
                "image_content_extracted": False, "session_id": session_id}
     parsed = {"summary": summary, "pages": pages, "chunks": chunks}
     directory = document_dir(session_id)

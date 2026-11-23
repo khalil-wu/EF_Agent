@@ -633,7 +633,8 @@ body.sheet-wide .report-text,body.sheet-wide .attachment-document{font-size:.875
 #lightbox.open{opacity:1;visibility:visible;transition-delay:0s}
 #lightbox img{max-width:100%;max-height:100%;border-radius:var(--r-l);background:#fff;box-shadow:var(--shadow-3);transform:scale(.94);transition:transform 320ms var(--ease-spring)}
 #lightbox.open img{transform:none}
-#scrim{position:fixed;inset:0;background:rgb(20 20 19/.28);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:none;z-index:15;animation:fadein var(--d-m) var(--ease)}
+#scrim{position:fixed;inset:0;background:rgb(20 20 19/.28);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:block;z-index:15;opacity:0;visibility:hidden;transition:opacity var(--d-m) var(--ease),visibility 0s linear var(--d-m)}
+#scrim.on{opacity:1;visibility:visible;transition-delay:0s}
 
 /* ---------- popover menus ---------- */
 .session-menu{inset:auto;margin:0;width:252px;max-width:calc(100vw - 24px);padding:6px;border:1px solid var(--hairline);border-radius:var(--r-l);background:color-mix(in srgb,var(--md-surface-container-lowest) 92%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);color:var(--md-on-surface);box-shadow:var(--shadow-2);opacity:0;transform:translateY(-6px) scale(.97);transition:opacity 160ms var(--ease),transform 200ms var(--ease-spring),overlay 160ms allow-discrete,display 160ms allow-discrete}

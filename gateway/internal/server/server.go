@@ -311,6 +311,7 @@ func skillName(s *agent.Session) string {
 // the files keep their original names side by side, so each upload group has its own directory.
 var sidecarHeader = map[string]string{".fdt": ".set", ".vmrk": ".vhdr", ".eeg": ".vhdr"}
 var uploadGroupID = regexp.MustCompile(`^upl_[0-9a-f-]{8,64}$`)
+var maxUploadBytes int64 = 1 << 30 // 1 GB per request; tests may lower it
 
 func (s *Server) attachmentFile(w http.ResponseWriter, r *http.Request) {
 	attachment, err := s.resolveAttachment(r)
@@ -353,23 +354,74 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	s.uploading[ses.ID] = true
 	s.mu.Unlock()
 	defer func() { s.mu.Lock(); delete(s.uploading, ses.ID); s.publishLocked(ses); s.mu.Unlock() }()
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<30)
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			writeJSON(w, 413, map[string]string{"error": "单个文件超过 1 GB 上传上限；大文件请挂接所在文件夹为工作区后直接读取"})
-			return
-		}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
+	mr, err := r.MultipartReader()
+	if err != nil {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
-	defer r.MultipartForm.RemoveAll()
-	files := r.MultipartForm.File["file"]
-	if len(files) == 0 {
+	fields := map[string]string{}
+	type receivedFile struct{ tmpPath, sha, name, original string }
+	var received []receivedFile
+	incoming := filepath.Join(s.StorageDir, "uploads", ses.ID, ".incoming")
+	defer func() {
+		for _, f := range received {
+			os.Remove(f.tmpPath) // already placed files are gone; leftovers on error paths are swept here
+		}
+		os.Remove(incoming) // only succeeds when empty
+	}()
+	tooLarge := func(err error) bool {
+		var max *http.MaxBytesError
+		return errors.As(err, &max)
+	}
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			if tooLarge(err) {
+				writeJSON(w, 413, map[string]string{"error": "单个文件超过 1 GB 上传上限；大文件请挂接所在文件夹为工作区后直接读取"})
+			} else {
+				writeJSON(w, 400, map[string]string{"error": err.Error()})
+			}
+			return
+		}
+		original := part.FileName()
+		switch {
+		case original == "":
+			if _, seen := fields[part.FormName()]; !seen {
+				if data, err := io.ReadAll(io.LimitReader(part, 1<<20)); err == nil {
+					fields[part.FormName()] = string(data)
+				}
+			}
+		case part.FormName() != "file":
+			_, _ = io.Copy(io.Discard, part)
+		default:
+			if err := os.MkdirAll(incoming, 0o755); err != nil {
+				part.Close()
+				writeJSON(w, 500, map[string]string{"error": err.Error()})
+				return
+			}
+			tmpPath, sha, err := receiveUpload(incoming, part)
+			if err != nil {
+				part.Close()
+				if tooLarge(err) {
+					writeJSON(w, 413, map[string]string{"error": "单个文件超过 1 GB 上传上限；大文件请挂接所在文件夹为工作区后直接读取"})
+				} else {
+					writeJSON(w, 400, map[string]string{"error": err.Error()})
+				}
+				return
+			}
+			received = append(received, receivedFile{tmpPath, sha, safeName(original), original})
+		}
+		part.Close()
+	}
+	if len(received) == 0 {
 		writeJSON(w, 400, map[string]string{"error": "missing form field 'file'"})
 		return
 	}
-	group := r.FormValue("upload_group_id")
+	group := fields["upload_group_id"]
 	if group == "" {
 		group = newID("upl")
 	}
@@ -382,23 +434,17 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
-	hdr := files[0]
+	hdr := received[0].original
 	var final string
-	for _, member := range files {
-		file, err := member.Open()
-		if err != nil {
-			writeJSON(w, 500, map[string]string{"error": err.Error()})
-			return
-		}
-		path, err := storeUpload(dir, safeName(member.Filename), file)
-		file.Close()
+	for _, member := range received {
+		path, err := placeUpload(member.tmpPath, member.sha, dir, member.name)
 		if err != nil {
 			writeJSON(w, 400, map[string]string{"error": err.Error()})
 			return
 		}
 		ext := strings.ToLower(filepath.Ext(path))
 		if final == "" || ext == ".vhdr" || ext == ".ahdr" || ext == ".set" {
-			final, hdr = path, member
+			final, hdr = path, member.original
 		}
 	}
 	ext := strings.ToLower(filepath.Ext(final))
@@ -411,8 +457,8 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		case ext == ".eeg":
 			// no BrainVision header: may be a standalone Nihon Kohden .eeg, try it below
 		default:
-			writeJSON(w, 200, map[string]any{"sidecar": true, "path": final, "original_name": hdr.Filename, "upload_group_id": group,
-				"note": fmt.Sprintf("已保存附属文件 %s；添加对应头文件后会一起读取", hdr.Filename)})
+			writeJSON(w, 200, map[string]any{"sidecar": true, "path": final, "original_name": hdr, "upload_group_id": group,
+				"note": fmt.Sprintf("已保存附属文件 %s；添加对应头文件后会一起读取", hdr)})
 			return
 		}
 	}
@@ -420,7 +466,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	// The worker routes by content: signal files become EEG records, video and documents (including label or event
 	// tables) become attachments. Acquisition facts given at upload apply to signal files.
 	args := map[string]any{"path": target, "_session_id": ses.ID}
-	if v := r.FormValue("sample_rate_hz"); v != "" {
+	if v := fields["sample_rate_hz"]; v != "" {
 		sr, err := strconv.ParseFloat(v, 64)
 		if err != nil || sr <= 0 {
 			writeJSON(w, 400, map[string]string{"error": "采样率必须是大于 0 的数字"})
@@ -428,10 +474,10 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		}
 		args["sample_rate_hz"] = sr
 	}
-	if v := r.FormValue("channel_names"); v != "" {
+	if v := fields["channel_names"]; v != "" {
 		args["channel_names"] = strings.Split(v, ",")
 	}
-	if v := r.FormValue("trial_index"); v != "" {
+	if v := fields["trial_index"]; v != "" {
 		ti, err := strconv.Atoi(v)
 		if err != nil || ti < 0 {
 			writeJSON(w, 400, map[string]string{"error": "试次必须是非负整数"})
@@ -444,7 +490,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	body, err := s.Worker.Call(r.Context(), toolName, raw)
 	if err != nil {
 		if strings.ToLower(filepath.Ext(target)) == ".eeg" {
-			writeJSON(w, 200, map[string]any{"sidecar": true, "path": final, "original_name": hdr.Filename, "upload_group_id": group,
+			writeJSON(w, 200, map[string]any{"sidecar": true, "path": final, "original_name": hdr, "upload_group_id": group,
 				"note": "已保存 .eeg 文件；BrainVision 数据还需要对应的头文件和标记文件一起读取"})
 			return
 		}
@@ -458,13 +504,13 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 502, map[string]any{"error": "bad manifest from worker", "worker": workerJSON(body)})
 		return
 	}
-	displayName := hdr.Filename
+	displayName := hdr
 	if target != final {
 		displayName = filepath.Base(target)
 	}
 	out.Manifest.OriginalName = displayName
 	out.Manifest.UploadGroupID = group
-	staged := r.FormValue("staged") == "true"
+	staged := fields["staged"] == "true"
 	s.mu.Lock()
 	records := ses.Manifests
 	if staged {
@@ -1103,31 +1149,38 @@ func safeName(name string) string {
 	return out
 }
 
-// storeUpload writes the upload as dir/name. An identical existing file is reused; a different one with the same
-// name gets a random suffix (its sidecars then keep their own names, so re-upload them together if needed).
-func storeUpload(dir, name string, src io.Reader) (string, error) {
-	tmp, err := os.CreateTemp(dir, ".upload-*")
+// receiveUpload streams one uploaded file into a temp file inside tmpDir on the target filesystem while hashing it,
+// so a large upload is written to disk exactly once.
+func receiveUpload(tmpDir string, src io.Reader) (path, sha string, err error) {
+	tmp, err := os.CreateTemp(tmpDir, ".part-*")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	h := sha256.New()
 	if _, err := io.Copy(io.MultiWriter(tmp, h), src); err != nil {
 		tmp.Close()
 		os.Remove(tmp.Name())
-		return "", err
+		return "", "", err
 	}
-	tmp.Close()
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return "", "", err
+	}
+	return tmp.Name(), hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// placeUpload moves a received temp file to dir/name. An identical existing file is reused; a different one with the
+// same name is rejected (re-upload it under a new upload_group_id).
+func placeUpload(tmpPath, sha, dir, name string) (string, error) {
 	final := filepath.Join(dir, name)
 	if fileExists(final) {
-		if sum, err := fileSHA256(final); err == nil && sum == hex.EncodeToString(h.Sum(nil)) {
-			os.Remove(tmp.Name())
+		if sum, err := fileSHA256(final); err == nil && sum == sha {
+			os.Remove(tmpPath)
 			return final, nil
 		}
-		os.Remove(tmp.Name())
 		return "", fmt.Errorf("同一上传组包含同名不同内容的文件 %s；请为新记录使用新的 upload_group_id", name)
 	}
-	if err := os.Rename(tmp.Name(), final); err != nil {
-		os.Remove(tmp.Name())
+	if err := os.Rename(tmpPath, final); err != nil {
 		return "", err
 	}
 	return final, nil

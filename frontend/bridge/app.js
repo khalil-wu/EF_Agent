@@ -252,8 +252,9 @@ async function performMenuAction(action,record){
   }
 
 }
-function openDrawer(){if(innerWidth>900){const collapsed=document.body.classList.toggle('sidebar-collapsed');localStorage.setItem('eeg-sidebar-collapsed',String(collapsed));$('#drawerBtn').setAttribute('aria-expanded',String(!collapsed));return}closeSheet();refreshSessions().catch(reportError);$('#scrim').style.display='block';$('#drawer').classList.add('open');$('#drawerBtn').setAttribute('aria-expanded','true')}
-function closeDrawer(){$('#drawer').classList.remove('open');$('#drawerBtn').setAttribute('aria-expanded',String(innerWidth>900&&!document.body.classList.contains('sidebar-collapsed')));if(!(narrow()&&document.body.classList.contains('sheet-open')))$('#scrim').style.display='none'}
+function setScrim(on){$('#scrim').classList.toggle('on',on)}
+function openDrawer(){if(innerWidth>900){const collapsed=document.body.classList.toggle('sidebar-collapsed');localStorage.setItem('eeg-sidebar-collapsed',String(collapsed));$('#drawerBtn').setAttribute('aria-expanded',String(!collapsed));return}closeSheet();refreshSessions().catch(reportError);setScrim(true);$('#drawer').classList.add('open');$('#drawerBtn').setAttribute('aria-expanded','true')}
+function closeDrawer(){$('#drawer').classList.remove('open');$('#drawerBtn').setAttribute('aria-expanded',String(innerWidth>900&&!document.body.classList.contains('sidebar-collapsed')));if(!(narrow()&&document.body.classList.contains('sheet-open')))setScrim(false)}
 async function resumeSession(id){
   if(uploading||submitting||uploadTask){snack('文件或消息正在提交，请稍候');return}
   leaveView();const version=viewVersion;
@@ -526,7 +527,7 @@ function renderManifest(m,preview){
     if(m.sync)detail+=`<p class="record-detail-note">视频 0 秒对应原 EEG ${m.sync.start_offset_s} s · ${m.sync.source==='user_confirmed'?'已确认同步':'已记录同步声明'}</p>`;
   }else if(m.modality==='document'){
     h+=`<div class="record-facts"><span>${m.page_count||1} 页</span><span>${(m.size_bytes/1024).toFixed(0)} KB</span></div>`;
-    if(m.document_index)detail+=`<div class="kv"><span class="k">检索</span><span class="v">${m.document_index.n_chunks} 个片段 · ${esc(({ready:'已解析',partial:'部分页面待 OCR',ocr_required:'需要 OCR',empty:'没有可检索正文'})[m.document_index.status])}</span></div>`;
+    if(m.document_index)detail+=`<div class="kv"><span class="k">检索</span><span class="v">${m.document_index.n_chunks} 个片段 · ${esc(({ready:'已解析',partial:'部分页面待 OCR',ocr_required:'需要 OCR',empty:'没有可检索正文'})[m.document_index.status])}${m.document_index.ocr_pages?.length?` · OCR ${m.document_index.ocr_pages.length} 页`:''}</span></div>`;
   }else if(m.modality==='image'){
     h+=`<div class="record-facts"><span>${m.width} × ${m.height}</span><span>${(m.size_bytes/1024).toFixed(0)} KB</span></div>`;
   }
@@ -1406,8 +1407,8 @@ document.body.classList.toggle('sidebar-collapsed',localStorage.getItem('eeg-sid
 {const wideBtn=$('#sheetWide'),applyWide=wide=>{document.body.classList.toggle('sheet-wide',wide);wideBtn.setAttribute('aria-pressed',String(wide));wideBtn.title=wide?'恢复宽度':'加宽面板';wideBtn.setAttribute('aria-label',wideBtn.title);wideBtn.querySelector('.ms').textContent=wide?'compress':'open_in_full'};applyWide(localStorage.getItem('eeg-sheet-wide')==='true');wideBtn.onclick=()=>{const wide=!document.body.classList.contains('sheet-wide');localStorage.setItem('eeg-sheet-wide',wide?'true':'false');applyWide(wide)}}
 $('#drawerBtn').setAttribute('aria-expanded',String(innerWidth>900&&!document.body.classList.contains('sidebar-collapsed')));
 const narrow=()=>matchMedia('(max-width:1200px)').matches;
-function openSheet(){$('#drawer').classList.remove('open');if(innerWidth<=900)$('#drawerBtn').setAttribute('aria-expanded','false');$('#sheetBtn').setAttribute('aria-expanded','true');document.body.classList.add('sheet-open');$('#sheetBtn').classList.add('on');showTab(currentPanel);if(narrow())$('#scrim').style.display='block'}
-function closeSheet(){resetAttachmentView();$('#sheetBtn').setAttribute('aria-expanded','false');document.body.classList.remove('sheet-open');$('#sheetBtn').classList.remove('on');$$('.workspace-nav [data-panel]').forEach(b=>b.classList.remove('active'));badge('#bData',+$('#bData').textContent||0);if(!$('#drawer').classList.contains('open'))$('#scrim').style.display='none'}
+function openSheet(){$('#drawer').classList.remove('open');if(innerWidth<=900)$('#drawerBtn').setAttribute('aria-expanded','false');$('#sheetBtn').setAttribute('aria-expanded','true');document.body.classList.add('sheet-open');$('#sheetBtn').classList.add('on');showTab(currentPanel);if(narrow())setScrim(true)}
+function closeSheet(){resetAttachmentView();$('#sheetBtn').setAttribute('aria-expanded','false');document.body.classList.remove('sheet-open');$('#sheetBtn').classList.remove('on');$$('.workspace-nav [data-panel]').forEach(b=>b.classList.remove('active'));badge('#bData',+$('#bData').textContent||0);if(!$('#drawer').classList.contains('open'))setScrim(false)}
 $('#sheetBtn').onclick=()=>document.body.classList.contains('sheet-open')?closeSheet():openSheet();$('#sheetClose').onclick=closeSheet;
 $('#scrim').onclick=()=>{closeDrawer();if(narrow())closeSheet()};
 function showTabAndOpen(name){if(name==='art'){openResults();return}showTab(name);openSheet()}

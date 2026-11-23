@@ -82,6 +82,8 @@ def register_attachment(path: str, session_id: str | None = None) -> dict:
         manifest["document_index"] = document
         if document["pages_needing_ocr"]:
             manifest["warnings"].append("部分页面只有图像，需要 OCR 后才能检索这些页面")
+        if document["ocr_pages"]:
+            manifest["warnings"].append(f"{len(document['ocr_pages'])} 页为扫描图像，文字由 OCR 识别，可能存在识别错误；引用前请核对原文")
     save_manifest(manifest)
     return {"status": "ok", "manifest": manifest}
 
@@ -138,7 +140,7 @@ def read_document(manifest_id: str, page: int = 1, limit: int = 3, offset: int =
         selected = parsed["pages"][start:start + min(int(limit), 5)]
         pages = [{"page": row["page"], "text": "\n\n".join([row["text"], *row["tables"]]).strip(),
                   "needs_ocr": row["needs_ocr"],
-                  "extraction_method": "native_text_and_tables" if row["tables"] else "native_text"} for row in selected]
+                  "extraction_method": "ocr_text" if row.get("ocr") else "native_text_and_tables" if row["tables"] else "native_text"} for row in selected]
         total = len(parsed["pages"])
     elif file.suffix.lower() == ".pdf":
         with pymupdf.open(file) as pdf:

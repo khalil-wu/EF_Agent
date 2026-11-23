@@ -26,24 +26,32 @@ func TestSafeNameKeepsOriginalNames(t *testing.T) {
 
 func TestStoreUploadDedupesAndKeepsSidecarNames(t *testing.T) {
 	dir := t.TempDir()
-	p1, err := storeUpload(dir, "rec.set", strings.NewReader("header"))
+	tmpDir := t.TempDir()
+	put := func(name, content string) (string, error) {
+		tmpPath, sha, err := receiveUpload(tmpDir, strings.NewReader(content))
+		if err != nil {
+			return "", err
+		}
+		return placeUpload(tmpPath, sha, dir, name)
+	}
+	p1, err := put("rec.set", "header")
 	if err != nil || filepath.Base(p1) != "rec.set" {
 		t.Fatalf("first upload: %v %s", err, p1)
 	}
-	p2, _ := storeUpload(dir, "rec.set", strings.NewReader("header"))
+	p2, _ := put("rec.set", "header")
 	if p2 != p1 {
 		t.Fatalf("identical upload should reuse %s, got %s", p1, p2)
 	}
-	if _, err := storeUpload(dir, "rec.set", strings.NewReader("different")); err == nil {
+	if _, err := put("rec.set", "different"); err == nil {
 		t.Fatal("one upload group accepted different content under the same member name")
 	}
-	p4, _ := storeUpload(dir, "rec.fdt", strings.NewReader("data"))
+	p4, _ := put("rec.fdt", "data")
 	if filepath.Base(p4) != "rec.fdt" {
 		t.Fatalf("sidecar must keep its name, got %s", p4)
 	}
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".upload-") {
+		if strings.HasPrefix(e.Name(), ".part-") || strings.HasPrefix(e.Name(), ".upload-") {
 			t.Fatalf("temp file left behind: %s", e.Name())
 		}
 	}

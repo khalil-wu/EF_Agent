@@ -73,41 +73,41 @@ type ProgressToolExecutor interface {
 
 // Session is the linear transcript plus state the hooks need.
 type Session struct {
-	ID               string
-	Title            string
-	ParentSessionID  string
-	DeletedAt        *time.Time
-	Mode             contracts.PermissionMode
-	Messages         []llm.Message // does not include the system message
-	ArchivedMessages []llm.Message // complete transcript removed from model context by compaction
-	Manifests        []*contracts.Manifest
-	StagedManifests  []*contracts.Manifest // uploaded drafts, excluded from model context until submitted
-	Previews         map[string]json.RawMessage
-	Artifacts        []json.RawMessage
-	ScratchFiles     []string                   // files scripts wrote into this session's scratch dir
-	Knowledge        []json.RawMessage          // chunks retrieved for the current query
-	Sources          map[string]json.RawMessage // immutable excerpts available to this conversation
-	KnowledgeFacts   []json.RawMessage          // graph facts retrieved for the current query
-	KnowledgeQuery   string
-	KnowledgeUpdated bool
-	Summaries        []string // compaction summaries, oldest first
-	Usage            []TurnUsage
-	ActiveSkill      *skills.Skill
-	ToolErrors       int // failed tool executions in the current run
-	Turn             int
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	Running          bool
-	LastError        string
-	LastStopped      bool
-	LLMModel         string
-	VisionModel      string
+	ID                string
+	Title             string
+	ParentSessionID   string
+	DeletedAt         *time.Time
+	Mode              contracts.PermissionMode
+	Messages          []llm.Message // does not include the system message
+	ArchivedMessages  []llm.Message // complete transcript removed from model context by compaction
+	Manifests         []*contracts.Manifest
+	StagedManifests   []*contracts.Manifest // uploaded drafts, excluded from model context until submitted
+	Previews          map[string]json.RawMessage
+	Artifacts         []json.RawMessage
+	ScratchFiles      []string                   // files scripts wrote into this session's scratch dir
+	Knowledge         []json.RawMessage          // chunks retrieved for the current query
+	Sources           map[string]json.RawMessage // immutable excerpts available to this conversation
+	KnowledgeFacts    []json.RawMessage          // graph facts retrieved for the current query
+	KnowledgeQuery    string
+	KnowledgeUpdated  bool
+	Summaries         []string // compaction summaries, oldest first
+	Usage             []TurnUsage
+	ActiveSkill       *skills.Skill
+	ToolErrors        int // failed tool executions in the current run
+	Turn              int
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Running           bool
+	LastError         string
+	LastStopped       bool
+	LLMModel          string
+	VisionModel       string
 	ImageObservations map[string]string
-	WorkspaceID      string
-	PendingInput     *InputRequest
-	mu               sync.Mutex
-	steerMu          sync.Mutex
-	steer            []llm.Message
+	WorkspaceID       string
+	PendingInput      *InputRequest
+	mu                sync.Mutex
+	steerMu           sync.Mutex
+	steer             []llm.Message
 }
 
 type TurnUsage struct {
