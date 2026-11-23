@@ -81,6 +81,7 @@
       <div class="card outlined muted body-m" id="noArt">分析生成的图表、报告和数据文件会显示在这里。</div>
       <section id="resultCatalog" aria-label="结果目录">
         <div class="result-toolbar"><label id="resultScopeHeading">查看范围</label><button id="resultScope" class="result-scope-trigger" type="button" aria-label="选择分析结果范围" aria-haspopup="listbox" aria-expanded="false" aria-controls="resultScopeMenu"><span id="resultScopeLabel">最近一次分析</span><span class="ms">expand_more</span></button><div id="resultScopeMenu" class="selection-menu" popover role="listbox" aria-label="分析结果范围"></div><input id="resultSearch" type="search" placeholder="搜索名称、说明或文件…" aria-label="搜索结果"></div>
+        <div class="result-type-filters" id="resultTypeFilters" role="group" aria-label="按产物类型筛选"><button type="button" class="on" data-result-type="all">全部</button><button type="button" data-result-type="plot">图表</button><button type="button" data-result-type="table">数据表</button><button type="button" data-result-type="report">报告</button><button type="button" data-result-type="other">信号与评估</button></div>
         <div id="resultList"></div>
       </section>
       <section id="resultDetail" aria-label="选中结果" hidden><button class="result-back" id="resultBack"><span class="ms">chevron_left</span>返回结果目录</button><div id="artifacts"></div></section>
@@ -115,7 +116,7 @@
   <div id="sesList" style="overflow-y:auto;flex:1"></div>
 <div class="sidebar-footer"><span class="dot" id="workerDot"></span><span id="workerStatus">本地服务</span><span class="grow"></span><button class="icon-btn state" id="themeBtn" title="切换主题"><span class="ms">dark_mode</span></button></div></nav>
 
-<div class="llm-picker" id="llmPicker" popover role="dialog" aria-label="选择对话模型"><div class="llm-picker-head">对话模型<button class="icon-btn" id="refreshLLMModels" title="刷新模型列表"><span class="ms">refresh</span></button></div><input id="llmSearch" class="llm-search" type="search" placeholder="搜索模型…" aria-label="搜索模型"><div class="llm-options" id="llmOptions" role="listbox" aria-label="网关模型"></div></div>
+<div class="llm-picker" id="llmPicker" popover role="dialog" aria-label="选择对话模型"><div class="llm-picker-head">模型路由<button class="icon-btn" id="refreshLLMModels" title="刷新模型列表"><span class="ms">refresh</span></button></div><div class="llm-role-tabs" id="llmRoleTabs" role="tablist" aria-label="模型职责"><button type="button" role="tab" class="on" data-llm-role="chat" aria-selected="true">对话与推理</button><button type="button" role="tab" data-llm-role="vision" aria-selected="false">视觉识图</button></div><div class="llm-role-hint" id="llmRoleHint">负责任务规划、工具调用与报告生成</div><input id="llmSearch" class="llm-search" type="search" placeholder="搜索模型…" aria-label="搜索模型"><div class="llm-options" id="llmOptions" role="listbox" aria-label="网关模型"></div></div>
 
 <div class="session-menu workspace-menu" id="workspaceMenu" popover role="menu" aria-label="工作区操作">
   <div id="workspaceMenuTitle" class="menu-title"></div>

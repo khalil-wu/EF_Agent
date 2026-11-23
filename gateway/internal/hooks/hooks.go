@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"eegagent/gateway/internal/agent"
@@ -17,6 +18,8 @@ import (
 type llmMessages = llm.Message
 
 const maxToolResultChars = 12000 // ≈ 4k tokens; larger results are summarized and kept on disk
+
+var fileRefTagRe = regexp.MustCompile(`(?s)<file_references>.*?</file_references>`)
 
 // Retrieval is what the knowledge layer returns for a query: text chunks plus graph facts and linked entities.
 type Retrieval struct {
@@ -37,7 +40,7 @@ func Build(all map[string]contracts.ToolDefinition, storageDir string, retrieve 
 			if retrieve == nil {
 				return nil
 			}
-			last := lastUserText(s.Messages)
+			last := strings.TrimSpace(fileRefTagRe.ReplaceAllString(lastUserText(s.Messages), ""))
 			if last == "" || !needsKnowledge(last) {
 				s.Knowledge, s.KnowledgeFacts, s.KnowledgeQuery = nil, nil, ""
 				s.KnowledgeUpdated = false
@@ -50,7 +53,7 @@ func Build(all map[string]contracts.ToolDefinition, storageDir string, retrieve 
 			if q == s.KnowledgeQuery {
 				return nil
 			}
-			res, err := retrieve(ctx, q, 3, s.ID)
+			res, err := retrieve(ctx, q, 4, s.ID)
 			if err != nil || res == nil {
 				s.Knowledge, s.KnowledgeFacts, s.KnowledgeQuery = nil, nil, ""
 				s.KnowledgeUpdated = false
@@ -72,7 +75,7 @@ func Build(all map[string]contracts.ToolDefinition, storageDir string, retrieve 
 		},
 
 		BeforeTool: func(_ context.Context, s *agent.Session, c agent.ToolCall) (bool, string) {
-			if c.Name == "read_skill" || c.Name == "request_user_input" {
+			if c.Name == "read_skill" || c.Name == "request_user_input" || c.Name == "inspect_image" {
 				return false, ""
 			}
 			def, ok := all[c.Name]
@@ -307,8 +310,8 @@ func lastUserText(msgs []llmMessages) string {
 // Automatic retrieval serves method and evidence questions. The model can still call
 // search_knowledge explicitly when a practical analysis needs a specific source.
 func needsKnowledge(text string) bool {
-	methodQuestion := mentionsAny(text, "什么是", "是什么", "是什么意思", "为什么", "为何", "原理", "依据", "证据", "文献", "论文", "定义", "规范", "区别", "怎么解释", "意味着", "可靠性", "泛化", "适合", "怎么选", "如何选择", "合理", "阈值")
-	eegTopic := mentionsAny(text, "EEG", "脑电", "alpha", "beta", "delta", "theta", "gamma", "α", "β", "δ", "θ", "γ", "伪迹", "ICA", "ASR", "ICLabel", "RANSAC", "PREP", "ERP", "ERSP", "wPLI", "PLV", "PPC", "FOOOF", "specparam", "Hjorth", "Welch", "PSD", "差分熵", "连接性", "情绪", "通道", "采样", "电极", "滤波", "功率", "节律", "CAMER", "EEGNet", "LaBraM", "NeuroLM", "BIOT", "DEAP", "AMIGOS", "MAHNOB", "EAV", "Emotiv", "OpenBCI")
+	methodQuestion := mentionsAny(text, "什么是", "是什么", "是什么意思", "为什么", "为何", "原理", "依据", "证据", "文献", "论文", "定义", "规范", "区别", "怎么解释", "意味着", "可靠性", "泛化", "适合", "怎么选", "如何选择", "合理", "阈值", "标准流程", "优缺点", "公式", "生理机制", "数学定义")
+	eegTopic := mentionsAny(text, "EEG", "脑电", "alpha", "beta", "delta", "theta", "gamma", "α", "β", "δ", "θ", "γ", "伪迹", "ICA", "ASR", "ICLabel", "RANSAC", "PREP", "ERP", "ERSP", "wPLI", "PLV", "PPC", "FOOOF", "specparam", "Hjorth", "Welch", "PSD", "差分熵", "连接性", "情绪", "通道", "采样", "电极", "滤波", "功率", "节律", "睡眠", "纺锤波", "慢波", "AASM", "REM", "SSVEP", "P300", "运动想象", "多模态", "面部表情", "CAMER", "EEGNet", "EEGPT", "LaBraM", "NeuroLM", "BIOT", "DEAP", "AMIGOS", "MAHNOB", "EAV", "Emotiv", "OpenBCI", "BioSemi", "BrainVision")
 	capabilityQuestion := mentionsAny(text, "能不能", "能否", "可以用", "能做", "可用于") &&
 		mentionsAny(text, "CAMER", "EEGPT", "EEGNet", "LaBraM", "NeuroLM", "BIOT")
 	return eegTopic && (methodQuestion || capabilityQuestion)

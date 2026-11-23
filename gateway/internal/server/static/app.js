@@ -8,11 +8,11 @@ let sessionsCache=[],trashView=false,sessionListVersion=0,menuRecord=null,dialog
 let currentTitle='',currentParent='',activeSkillName='';
 let skillCatalog=[],commandIndex=0,commandMatches=[];
 let modelCatalog=[],modelTask='emotion',pendingInput=null;
-let currentLLMModel='',defaultLLMModel='',llmModels=[],modelCapabilities={},changingModel=false;
+let currentLLMModel='',currentVisionModel='',effectiveVisionModel='',defaultLLMModel='',defaultVisionModel='',llmModels=[],modelCapabilities={},changingModel=false,llmPickerRole='chat';
 let pendingFiles=[],pendingFilesBySession=new Map(),uploadTask=null;
 const fileUploads=new WeakMap();
 let transcript,liveCursor=null;
-let resultScope='latest',selectedArtifact=null;
+let resultScope='latest',resultTypeFilter='all',selectedArtifact=null;
 let currentWorkspaceID='';
 let menuWorkspace=null;
 let currentPanel='data',lastContentPanel='data';
@@ -20,7 +20,7 @@ const attachmentViewer=AttachmentPreview.mount($('#attachmentPreview'),{load:asy
 const eventTraces=new Map();
 const workspaceMount=WorkspaceMount.mount({api,select:id=>newSession(false,id)});
 const fileMentions=FileMentions.mount({input:$('#input'),menu:$('#mentionMenu'),chips:$('#referenceChips'),list:referenceSuggestions,scope:()=>sessionId+'|'+currentWorkspaceID,preview:openReference,changed:autosize});
-const TOOL_LABEL={analyze_signal:'本地信号分析',workspace_quality:'批量检查信号质量',workspace_files:'整理工作区',write_file:'保存工作区文件',edit_file:'修改工作区文件',save_to_workspace:'保存分析结果到工作区',request_user_input:'补充分析信息',update_record_metadata:'登记数据说明',read_skill:'读取分析方法',list_files:'查找数据',read_file:'读取文件',read_document:'阅读文档',inspect_record:'检查数据结构',preprocess:'预处理',clean_artifacts:'去除伪迹',detect_transients:'定位瞬态候选',segment_signal:'划分时间窗',extract_features:'提取特征',save_emotion_assessment:'保存情绪判断',plot:'绘制图表',export:'导出结果',read_artifact:'读取结果',device_lookup:'核对设备',check_model_compat:'检查模型适用性',list_models:'查看识别模型',route_model:'选择识别模型',run_model:'执行识别模型',recognize_emotion:'识别情绪',run_python:'执行分析脚本',search_knowledge:'检索知识',knowledge_graph:'查询知识关系'};
+const TOOL_LABEL={analyze_signal:'本地信号分析',workspace_quality:'批量检查信号质量',workspace_files:'整理工作区',write_file:'保存工作区文件',edit_file:'修改工作区文件',save_to_workspace:'保存分析结果到工作区',request_user_input:'补充分析信息',update_record_metadata:'登记数据说明',read_skill:'读取分析方法',list_files:'查找数据',read_file:'读取文件',read_document:'阅读文档',inspect_record:'检查数据结构',inspect_image:'审阅图像与图表',preprocess:'预处理',clean_artifacts:'去除伪迹',detect_transients:'定位瞬态候选',segment_signal:'划分时间窗',extract_features:'提取特征',save_emotion_assessment:'保存情绪判断',plot:'绘制图表',export:'导出结果',read_artifact:'读取结果',device_lookup:'核对设备',check_model_compat:'检查模型适用性',list_models:'查看识别模型',route_model:'选择识别模型',run_model:'执行识别模型',recognize_emotion:'识别情绪',run_python:'执行分析脚本',search_knowledge:'检索知识',knowledge_graph:'查询知识关系'};
 let serviceState={worker:'unknown',model:'…'}, requestFailure='';
 const KIND_ICON={report:'description',plot:'image',features:'grid_on',windows:'view_week',normalized_signal:'waves',table:'download',compat_report:'rule',prediction:'insights',emotion_assessment:'insights',aggregate:'stacked_line_chart'};
 const KIND_LABEL={report:'研究报告',plot:'图',features:'特征',windows:'窗口表',normalized_signal:'预处理信号',table:'导出文件',prediction:'预测',emotion_assessment:'情绪判断',aggregate:'聚合'};
@@ -132,14 +132,14 @@ function resizePanel(id,variable,min,max,direction){
 resizePanel('drawerResize','sidebar-w',200,320,1);resizePanel('sheetResize','sheet-w',320,520,-1);
 
 /* ---------- session ---------- */
-function resetView(){renderInputRequest(null);transcript.reset();$('#manifests').innerHTML='';$('#noData').style.display='';$('#artifacts').innerHTML='';$('#noArt').style.display='';$('#knowledge').innerHTML='';$('#facts').innerHTML='';$('#noKnow').style.display='';badge('#bData',0);badge('#bArt',0);badge('#bKnow',0);$('#trace').innerHTML='';$('#noTrace').style.display='';$('#activeSkill').textContent='自动选择方法';manifests=[];artifacts={};knowledge={};facts={};resultScope='latest';selectedArtifact=null;$('#resultSearch').value='';$('#resultList').replaceChildren();$('#resultCatalog').hidden=false;$('#resultDetail').hidden=true}
+function resetView(){renderInputRequest(null);transcript.reset();$('#manifests').innerHTML='';$('#noData').style.display='';$('#artifacts').innerHTML='';$('#noArt').style.display='';$('#knowledge').innerHTML='';$('#facts').innerHTML='';$('#noKnow').style.display='';badge('#bData',0);badge('#bArt',0);badge('#bKnow',0);$('#trace').innerHTML='';$('#noTrace').style.display='';$('#activeSkill').textContent='自动选择方法';manifests=[];artifacts={};knowledge={};facts={};resultScope='latest';resultTypeFilter='all';selectedArtifact=null;$('#resultSearch').value='';$('#resultList').replaceChildren();$('#resultCatalog').hidden=false;$('#resultDetail').hidden=true}
 async function newSession(preserveComposer=false,workspaceId=currentWorkspaceID){
   const selectedWorkspace=workspaceId;
   const staged=preserveComposer?[...pendingFiles]:[];
   if(uploading||submitting||navigating){snack('文件或消息正在提交，请稍候');return}
   leaveView();const version=viewVersion;
   let j;try{j=await api('/sessions',{method:'POST'})}finally{if(version===viewVersion){navigating=false;autosize()}}if(version!==viewVersion)return;
-  sessionId=j.session_id;requestFailure='';currentTitle='';currentParent='';setActiveSkill('');pendingFiles=staged;trashView=false;updateSessionListHeader();$('#branchLabel').hidden=true;rememberSession(sessionId);resetView();setConversationModel(j.llm_model);mode='readonly';
+  sessionId=j.session_id;requestFailure='';currentTitle='';currentParent='';setActiveSkill('');pendingFiles=staged;trashView=false;updateSessionListHeader();$('#branchLabel').hidden=true;rememberSession(sessionId);resetView();setConversationModel(j.llm_model,j.vision_model,j.effective_vision_model);mode='readonly';
   if(selectedWorkspace)await api(`/sessions/${sessionId}/workspace`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:selectedWorkspace})});
   currentWorkspaceID=selectedWorkspace;
   fileMentions.restore(sessionId,preserveComposer);
@@ -258,7 +258,7 @@ async function resumeSession(id){
 }
 function renderSession(j){
   currentWorkspaceID=j.workspace_id||'';
-  resetView();setConversationModel(j.llm_model);currentTitle=j.title||'';currentParent=j.parent_session_id||'';$('#sessionLabel').textContent=currentTitle||'新分析';$('#branchLabel').hidden=!currentParent;
+  resetView();setConversationModel(j.llm_model,j.vision_model,j.effective_vision_model);currentTitle=j.title||'';currentParent=j.parent_session_id||'';$('#sessionLabel').textContent=currentTitle||'新分析';$('#branchLabel').hidden=!currentParent;
   for(const m of j.manifests||[])addManifest(m,j.previews?.[m.manifest_id]);
   for(const a of j.artifacts||[])addArtifactCard(a);
   for(const source of Object.values(j.sources||{}))addKnowledge(source,'snapshot');
@@ -315,7 +315,7 @@ function consumeEngineEvent(event){
       for(const fact of event.result.facts||[])addFact(fact);
       break;
     }
-    case 'artifact_ready':addArtifactCard(event.result);break;
+    case 'artifact_ready':addArtifactCard(event.result);if(event.result?.kind==='report'&&typeof innerWidth!=='undefined'&&innerWidth>1200&&typeof document!=='undefined'&&!document.body.classList.contains('sheet-open')&&typeof openArtifact==='function'){openArtifact(event.result.artifact_id)}break;
     case 'knowledge_retrieved':{const result=event.result||{};for(const source of Array.isArray(result)?result:result.chunks||[])addKnowledge(source,'auto');for(const fact of result.facts||[])addFact(fact);break}
     case 'user_input_requested':renderInputRequest(event.result.request);break;
     case 'skill_activated':setActiveSkill(event.skill);traceEv('skill','方法',SKILL_NAMES[event.skill]||event.skill);break;
@@ -385,6 +385,7 @@ function formatToolArgs(name,a){
     case 'read_file':return `${a.path} · 第 ${a.offset||1} 行起`;
     case 'read_document':return [manifests.find(({m})=>m.manifest_id===a.manifest_id)?.m.original_name,`第 ${a.page||1} 页起 · 最多 ${a.limit||3} 页`].filter(Boolean).join(' · ');
     case 'inspect_record':return a.path||manifests.find(({m})=>m.manifest_id===a.manifest_id)?.m.original_name||'读取数据结构';
+    case 'inspect_image':return [a.target_id,a.question].filter(Boolean).join(' · ');
     case 'preprocess':return (a.steps||[]).map(preprocessDescription).join(' → ');
     case 'clean_artifacts':return ({bad_channels:'检查坏道',asr:'伪迹子空间重建',ica_iclabel:'ICA 成分识别'})[a.method]||a.method;
     case 'segment_signal':return `${a.window_s} 秒窗口 · ${a.stride_s||a.window_s} 秒步长${range}`;
@@ -448,6 +449,7 @@ function toolResultSummary(name,result){if(!result||typeof result!=='object')ret
     case 'workspace_quality':return `${s.file_count} 个文件 · ${s.measured} 个试次已测量${s.not_measured?' · '+s.not_measured+' 个试次未完成检查':''}`;
     case 'write_file':case 'edit_file':case 'save_to_workspace':return `${r.relative_path} · 已保存`;
     case 'inspect_record':return [m.n_channels&&`${m.n_channels} 通道`,m.sample_rate_hz&&`${m.sample_rate_hz} Hz`,m.duration_s&&`${(m.duration_s).toFixed(1)} s`,m.source_format].filter(Boolean).join(' · ');
+    case 'inspect_image':return r.vision_model?'识图模型 '+r.vision_model+' 已完成审阅':'已完成图像审阅';
     case 'preprocess':{const sz=Array.isArray(s.shape)?`${s.shape[0]}×${s.shape[1]}`:(s.n_channels&&s.n_samples?`${s.n_channels}×${s.n_samples}`:'');return [sz,s.sample_rate_hz&&`${s.sample_rate_hz} Hz`,s.duration_s&&`${s.duration_s} s`,(s.steps||[]).length&&`${s.steps.length} 步处理`].filter(Boolean).join(' · ')}
     case 'segment_signal':return [s.n_windows&&`${s.n_windows} 个窗口`,s.window_s&&`窗长 ${s.window_s} s`,s.stride_s&&`步长 ${s.stride_s} s`].filter(Boolean).join(' · ');
     case 'extract_features':return [s.n_windows&&`${s.n_windows} 窗`,s.n_channels&&`${s.n_channels} 通道`,(s.features||[]).length&&`${s.features.length} 类特征`].filter(Boolean).join(' · ');
@@ -577,7 +579,8 @@ function removePendingFile(file){
   renderPendingFiles();if(removed.length>1)snack('已移除关联脑电文件组');
 }
 function renderPendingFiles(){
-  const needsModel=hasImageInput()&&!modelCapabilities[currentLLMModel]?.image_input;
+  const activeVision=(typeof effectiveVisionModel==='string'&&effectiveVisionModel)||currentLLMModel;
+  const needsModel=hasImageInput()&&!modelCapabilities[activeVision]?.image_input;
   const box=$('#pendingFiles');box.replaceChildren();box.hidden=!pendingFiles.length&&!needsModel;
   pendingFiles.forEach(file=>{
     const state=fileUploads.get(file),chip=document.createElement('span');chip.className='pending-file '+state.status;
@@ -595,8 +598,8 @@ function renderPendingFiles(){
   });
   if(needsModel){
     const model=llmModels.find(name=>modelCapabilities[name]?.image_input);
-    const choose=document.createElement('button');choose.type='button';choose.className='chip small image-model-choice';choose.textContent=model?'用 '+model+' 看图':'选择看图模型';choose.disabled=streaming||submitting||uploading||changingModel;
-    choose.onclick=()=>model?selectLLMModel(model).then(renderPendingFiles).catch(reportError):$('#llmSelector').click();box.appendChild(choose);
+    const choose=document.createElement('button');choose.type='button';choose.className='chip small image-model-choice';choose.textContent=model?'用 '+model+' 识图':'选择看图模型';choose.disabled=streaming||submitting||uploading||changingModel;
+    choose.onclick=()=>model?(typeof selectVisionModel==='function'&&currentLLMModel&&llmModels.includes(currentLLMModel)?selectVisionModel(model):selectLLMModel(model)).then(renderPendingFiles).catch(reportError):$('#llmSelector').click();box.appendChild(choose);
   }
   autosize();
 }
@@ -798,12 +801,19 @@ function workspaceDeliveryFolder(files,total){
   return {workspace_id:first.workspace_id,path:parts.join('/')||'.',kind:'directory',name:parts.at(-1)||'工作区'};
 }
 function openResults(turnId){
-  resultScope=turnId||'latest';selectedArtifact=null;$('#resultDetail').hidden=true;$('#resultCatalog').hidden=false;
+  resultScope=turnId||'latest';resultTypeFilter='all';selectedArtifact=null;$('#resultDetail').hidden=true;$('#resultCatalog').hidden=false;
   $('#resultSearch').value='';showTab('art');openSheet();renderResultCatalog();$('.sheet-body').scrollTop=0;
 }
 function renderResultCatalog(){
   const groups=resultGroups(),active=resultScope==='latest'?groups[0]?.id:resultScope;
   renderResultScope(groups);
+  const filter=typeof resultTypeFilter!=='undefined'?resultTypeFilter:'all';
+  if(typeof $$==='function')$$('#resultTypeFilters [data-result-type]').forEach(button=>{const on=button.dataset.resultType===filter;button.classList.toggle('on',on);button.setAttribute('aria-pressed',String(on))});
+  const matchesType=item=>{
+    if(filter==='all')return true;
+    if(filter==='other')return !['plot','table','report'].includes(item.kind);
+    return item.kind===filter;
+  };
   const query=$('#resultSearch').value.trim().toLowerCase(),list=$('#resultList');list.replaceChildren();
   const scoped=resultScope==='all'?groups:groups.filter(group=>group.id===active);
   let count=0;
@@ -815,8 +825,9 @@ function renderResultCatalog(){
   }
   for(const group of scoped){
     const saved=new Set(group.deliveries.flatMap(delivery=>delivery.files.map(file=>file.artifact_id).filter(Boolean)));
-    const items=TranscriptUI.resultItems(group.ids,id=>artifacts[id]).filter(item=>!saved.has(item.artifact_id)).filter(item=>!query||[artifactTitle(item),TranscriptUI.resultDescription(item),...(item.source_manifest_ids||[]).map(id=>manifests.find(value=>value.m.manifest_id===id)?.m.original_name||'')].join(' ').toLowerCase().includes(query));
-    const deliveries=group.deliveries.filter(delivery=>!query||delivery.files.some(file=>file.path.toLowerCase().includes(query)));
+    const items=TranscriptUI.resultItems(group.ids,id=>artifacts[id]).filter(item=>!saved.has(item.artifact_id)).filter(matchesType).filter(item=>!query||[artifactTitle(item),TranscriptUI.resultDescription(item),...(item.source_manifest_ids||[]).map(id=>manifests.find(value=>value.m.manifest_id===id)?.m.original_name||'')].join(' ').toLowerCase().includes(query));
+    const showDeliveries=filter==='all'||filter==='other';
+    const deliveries=showDeliveries?group.deliveries.filter(delivery=>!query||delivery.files.some(file=>file.path.toLowerCase().includes(query))):[];
     if(!items.length&&!deliveries.length)continue;count+=items.length+deliveries.length;
     const section=document.createElement('section');section.className='result-group';
     const heading=document.createElement('h3');heading.textContent=group.title;section.appendChild(heading);
@@ -847,7 +858,7 @@ function renderResultCatalog(){
     list.appendChild(section);
   }
   $('#noArt').style.display=groups.length?'none':'';$('#resultCatalog').hidden=Boolean(selectedArtifact)||!groups.length;
-  if(!count&&groups.length){const empty=document.createElement('p');empty.className='result-empty';empty.textContent=query?'没有匹配的结果':'本轮还没有生成结果';list.appendChild(empty)}
+  if(!count&&groups.length){const empty=document.createElement('p');empty.className='result-empty';empty.textContent=query?'没有匹配的结果':filter!=='all'?'该分类下暂无产物':'本轮还没有生成结果';list.appendChild(empty)}
 }
 function openArtifact(id){
   if(resultScope!=='all'){const groups=resultGroups(),current=resultScope==='latest'?groups[0]:groups.find(group=>group.id===resultScope);if(!current?.ids.includes(id)){const owner=groups.find(group=>group.ids.includes(id));if(owner)resultScope=owner.id}}
@@ -884,6 +895,95 @@ function addArtifactCard(a,replace=false){
   if(selectedArtifact===a.artifact_id)renderArtifactDetail(a);
   transcript.metadata();
 }
+function parseDelimitedPreview(text,delimiter,maxRows=25){
+  const rows=[];let row=[],cell='',inQuotes=false,totalDataRows=0;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQuotes){
+      if(ch==='"'&&text[i+1]==='"'){cell+='"';i++}
+      else if(ch==='"')inQuotes=false;
+      else cell+=ch;
+      continue;
+    }
+    if(ch==='"'){inQuotes=true;continue}
+    if(ch===delimiter){row.push(cell);cell='';continue}
+    if(ch==='\r'||ch==='\n'){
+      if(ch==='\r'&&text[i+1]==='\n')i++;
+      row.push(cell);cell='';
+      if(row.length>1||row[0]!==''){
+        if(rows.length<=maxRows)rows.push(row);
+        if(rows.length>1)totalDataRows++;
+      }
+      row=[];continue;
+    }
+    cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);if(rows.length<=maxRows)rows.push(row);if(rows.length>1)totalDataRows++}
+  if(!rows.length)return {columns:[],rows:[],totalRows:0};
+  const columns=rows[0],data=rows.slice(1).map(r=>columns.map((_,idx)=>r[idx]??''));
+  return {columns,rows:data,totalRows:Math.max(0,totalDataRows)};
+}
+async function loadTablePreview(a,container){
+  try{
+    const response=await fetch(`/artifacts/${encodeURIComponent(a.artifact_id)}/file`);
+    if(!response.ok)throw new Error(`无法读取表格 (${response.status})`);
+    const raw=await response.text(),trimmed=raw.trim();
+    const isLarge=raw.length>400000,sample=isLarge?raw.slice(0,400000):raw;
+    let columns=[],rows=[],totalRows=0;
+    const fmt=(a.summary?.format||'').toLowerCase();
+    if(fmt==='json'||(!fmt&&(trimmed.startsWith('[')||trimmed.startsWith('{')))){
+      const parsed=JSON.parse(trimmed);
+      if(Array.isArray(parsed)){
+        totalRows=parsed.length;
+        const slice=parsed.slice(0,25);
+        if(slice.length&&typeof slice[0]==='object'&&slice[0]!==null&&!Array.isArray(slice[0])){
+          columns=[...new Set(slice.flatMap(item=>Object.keys(item||{})))].slice(0,32);
+          rows=slice.map(item=>columns.map(col=>{const v=item?.[col];return v==null?'':typeof v==='object'?JSON.stringify(v):String(v)}));
+        }else if(slice.length&&Array.isArray(slice[0])){
+          columns=slice[0].map((_,idx)=>'列 '+(idx+1));
+          rows=slice.map(r=>columns.map((_,idx)=>{const v=r[idx];return v==null?'':typeof v==='object'?JSON.stringify(v):String(v)}));
+        }
+      }else if(parsed&&Array.isArray(parsed.columns)&&Array.isArray(parsed.rows)){
+        columns=parsed.columns.map(String);totalRows=parsed.rows.length;
+        rows=parsed.rows.slice(0,25).map(r=>Array.isArray(r)?columns.map((_,idx)=>String(r[idx]??'')):columns.map(c=>String(r?.[c]??'')));
+      }else if(parsed&&typeof parsed==='object'){
+        columns=['字段','值'];
+        const entries=Object.entries(parsed);totalRows=entries.length;
+        rows=entries.slice(0,25).map(([k,v])=>[k,v==null?'':typeof v==='object'?JSON.stringify(v):String(v)]);
+      }
+    }else{
+      const firstLine=sample.split(/\r?\n/,1)[0]||'';
+      const delimiter=fmt==='tsv'||(firstLine.includes('\t')&&!firstLine.includes(','))?'\t':',';
+      const parsed=parseDelimitedPreview(isLarge?sample.replace(/\r?\n[^\r\n]*$/,''):sample,delimiter,25);
+      columns=parsed.columns;rows=parsed.rows;totalRows=parsed.totalRows;
+    }
+    if(!columns.length){container.innerHTML='<div class="table-preview-meta">表格内容为空或不支持内联预览，请直接下载查看。</div>';return}
+    const meta=`预览前 ${rows.length} / ${isLarge?'至少 ':''}${totalRows} 行 · ${columns.length} 列`;
+    container.innerHTML=`<div class="table-preview-meta">${esc(meta)}</div><div class="table-preview-scroll"><table><thead><tr>${columns.map(col=>`<th title="${esc(col)}">${esc(col)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(cell=>`<td title="${esc(cell)}">${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  }catch(error){
+    container.innerHTML=`<div class="table-preview-meta">表格预览失败：${esc(error.message)}</div>`;
+  }
+}
+async function saveArtifactToWorkspace(artifactId,format='',button=null){
+  if(!sessionId||!currentWorkspaceID){snack('请先在左侧挂接一个本地工作区');return}
+  if(button)button.disabled=true;
+  try{
+    const res=await api(`/sessions/${encodeURIComponent(sessionId)}/artifacts/${encodeURIComponent(artifactId)}/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(format?{format}:{})});
+    snack('已保存到工作区：'+(res.relative_path||res.name||'outputs/'),res.workspace_file?{label:'打开文件',run:()=>openReference(res.workspace_file)}:undefined);
+  }catch(error){
+    reportError(error);
+  }finally{
+    if(button)button.disabled=false;
+  }
+}
+function askAboutArtifact(a){
+  const title=artifactTitle(a);
+  const prompt=a.kind==='plot'?`请调用 inspect_image 审阅图表「${title}」（${a.artifact_id}），重点检查坐标轴、谱峰/伪迹特征与结论一致性。`:`请结合产物「${title}」（${a.artifact_id}）进一步分析：`;
+  $('#input').value=prompt;
+  if(narrow())closeSheet();
+  autosize();
+  $('#input').focus();
+}
 function renderArtifactDetail(a){
   $('#artifacts').replaceChildren();
   const c=document.createElement('div');c.className='card artcard';c.id='artifact-'+a.artifact_id;
@@ -899,13 +999,28 @@ function renderArtifactDetail(a){
   if(a.kind==='table'||a.kind==='report')h+=`<div style="margin-top:8px"><a class="dl" href="/artifacts/${esc(a.artifact_id)}/file${a.kind==='report'?'?download=1':''}" target="_blank"><span class="ms sm">download</span>下载 ${esc((a.summary?.format||(markdownReport?'md':'文件')).toUpperCase())}</a></div>`;
   if(['normalized_signal','windows','features','aggregate','prediction','emotion_assessment'].includes(a.kind))h+=`<div class="artifact-download"><a class="dl" href="/artifacts/${esc(a.artifact_id)}/file" download><span class="ms sm">download</span>下载${esc(artifactTitle(a))}</a></div>`;
   if(a.summary?.format==='signal_edf'&&a.representations?.json)h+=`<a class="chip small" href="/artifacts/${esc(a.artifact_id)}/file?format=json&download=1" download>采样范围与元数据 JSON</a>`;
+  let saveAction='';
+  if(currentWorkspaceID){
+    const formats=a.kind==='plot'&&Array.isArray(a.summary?.available_formats)&&a.summary.available_formats.length?a.summary.available_formats:[];
+    if(formats.length){
+      const primary=formats[0],extras=formats.slice(1);
+      saveAction=`<span class="artifact-save-group"><button type="button" class="chip small" data-save-artifact="${esc(a.artifact_id)}" data-save-format="${esc(primary)}"><span class="ms">folder_open</span>保存到工作区 (${esc(primary.toUpperCase())})</button>${extras.map(fmt=>`<button type="button" class="chip small" data-save-artifact="${esc(a.artifact_id)}" data-save-format="${esc(fmt)}">保存 ${esc(fmt.toUpperCase())}</button>`).join('')}</span>`;
+    }else{
+      saveAction=`<button type="button" class="chip small" data-save-artifact="${esc(a.artifact_id)}" data-save-format=""><span class="ms">folder_open</span>保存到工作区</button>`;
+    }
+  }
+  const askLabel=a.kind==='plot'?'识图审阅此图':'围绕此结果追问',askIcon=a.kind==='plot'?'troubleshoot':'chat_bubble';
+  h+=`<div class="artifact-workbench-actions">${saveAction}<button type="button" class="chip small tonal" data-ask-artifact="${esc(a.artifact_id)}"><span class="ms">${askIcon}</span>${askLabel}</button></div>`;
+  if(a.kind==='table')h+=`<div class="artifact-table-preview" data-table-preview="${esc(a.artifact_id)}"><div class="table-preview-meta">正在读取数据表预览…</div></div>`;
   if(markdownReport)h+=`<details class="report-preview"><summary><span class="ms">chevron_right</span>阅读报告</summary><div class="md report-text">加载中…</div></details>`;
   if(a.kind==='plot'){
     h+=`<div class="thumb"><img src="/artifacts/${esc(a.artifact_id)}/file" alt="${esc(artifactTitle(a))}" onclick="lightbox(this.src)"></div>`;
     if(a.summary?.available_formats)h+=`<div class="plot-downloads"><span>下载</span>${a.summary.available_formats.map(format=>`<a href="/artifacts/${esc(a.artifact_id)}/file?format=${esc(format)}&download=1" download>${esc(format.toUpperCase())}</a>`).join('')}</div>`;
   }
   h+=`<details class="artifact-tech"><summary><span class="ms">chevron_right</span>来源与处理过程</summary>${a.kind==='prediction'&&a.summary?.method==='model_inference'?`<div class="artifact-meta">模型：${esc(a.summary.model_id)} · 版本：${esc(a.summary.model_version)}</div>`:''}<pre class="raw">展开读取实际产物记录</pre></details>`;
-  c.innerHTML=h;const technical=c.querySelector('.artifact-tech');technical.addEventListener('toggle',async()=>{
+  c.innerHTML=h;
+  const tableBox=c.querySelector('[data-table-preview]');if(tableBox)loadTablePreview(a,tableBox);
+  const technical=c.querySelector('.artifact-tech');technical.addEventListener('toggle',async()=>{
     if(!technical.open||technical.dataset.loaded)return;
     const detail=technical.querySelector('pre');detail.textContent='正在读取实际产物记录…';
     try{const record=await api(`/artifacts/${a.artifact_id}`);detail.textContent=JSON.stringify(record,null,2);technical.dataset.loaded='true'}
@@ -914,6 +1029,8 @@ function renderArtifactDetail(a){
   const report=c.querySelector('.report-preview');if(report)report.addEventListener('toggle',async()=>{if(!report.open||report.dataset.loaded)return;try{const response=await fetch(`/artifacts/${a.artifact_id}/file`);if(!response.ok)throw new Error('报告文件无法读取');report.querySelector('.report-text').innerHTML=md(await response.text(),{images:true});report.dataset.loaded='true'}catch(error){report.querySelector('.report-text').textContent=error.message}});$('#artifacts').appendChild(c);
 }
 document.addEventListener('click',e=>{
+  const saveArt=e.target.closest('[data-save-artifact]');if(saveArt){saveArtifactToWorkspace(saveArt.dataset.saveArtifact,saveArt.dataset.saveFormat||'',saveArt).catch(reportError);return}
+  const askArt=e.target.closest('[data-ask-artifact]');if(askArt){const record=artifacts[askArt.dataset.askArtifact];if(record)askAboutArtifact(record);return}
   const executionArtifact=e.target.closest('[data-execution-artifact]');if(executionArtifact){openArtifact(executionArtifact.dataset.executionArtifact);return}
   const executionFile=e.target.closest('[data-execution-workspace]');if(executionFile){openReference({workspace_id:executionFile.dataset.executionWorkspace,path:executionFile.dataset.executionPath,kind:executionFile.dataset.executionKind});return}
   const attachment=e.target.closest('[data-open-attachment]');if(attachment){openAttachment(attachment.dataset.openAttachment);return}
@@ -1087,45 +1204,135 @@ async function runSlashCommand(value){
 }
 
 /* ---------- conversation model selection ---------- */
-function hasImageInput(attached=[]){return manifests.some(item=>item.m.modality==='image')||attached.some(item=>item.modality==='image')||pendingFiles.some(file=>fileUploads.get(file).manifest?.modality==='image')}
+function hasImageInput(attached=[]){
+  const refs=typeof fileMentions!=='undefined'&&fileMentions?.references?fileMentions.references():[];
+  return manifests.some(item=>item.m.modality==='image')
+    ||attached.some(item=>item.modality==='image')
+    ||pendingFiles.some(file=>fileUploads.get(file).manifest?.modality==='image')
+    ||refs.some(ref=>ref.kind!=='directory'&&/\.(?:png|jpe?g|webp|gif|bmp|tiff?)$/i.test(ref.path||ref.name||''));
+}
 async function ensureImageModel(attached){
   if(!hasImageInput(attached))return true;
   if(!llmModels.length)await loadLLMModels();
-  if(modelCapabilities[currentLLMModel]?.image_input)return true;
+  const activeVision=(typeof effectiveVisionModel==='string'&&effectiveVisionModel)||currentLLMModel;
+  if(modelCapabilities[activeVision]?.image_input)return true;
   const visionModel=llmModels.find(name=>modelCapabilities[name]?.image_input);
   if(visionModel){
-    snack('自动切换到 '+visionModel+' 以支持图片输入');
-    await selectLLMModel(visionModel);
+    if(typeof selectVisionModel==='function'&&currentLLMModel&&llmModels.includes(currentLLMModel)){
+      snack('已启用 '+visionModel+' 负责识图，保留对话模型 '+currentLLMModel);
+      await selectVisionModel(visionModel);
+    }else{
+      snack('自动切换到 '+visionModel+' 以支持图片输入');
+      await selectLLMModel(visionModel);
+    }
     return true;
   }
+  if(typeof syncLLMRoleTabs==='function')syncLLMRoleTabs('vision');
   $('#llmSearch').value='';$('#llmPicker').showPopover();renderLLMModels();$('#llmSearch').focus();
-  snack('请选择支持图片的模型');return false;
+  snack('请选择支持图片的识图模型');return false;
 }
-function setConversationModel(name){currentLLMModel=name;$('#composerModel').textContent=name;$('#llmSelector').title='切换对话模型：'+name;$('#connChip').title='对话模型：'+name;renderPendingFiles()}
+function setConversationModel(name,vision='',effective=''){
+  currentLLMModel=name||'';
+  currentVisionModel=vision||'';
+  effectiveVisionModel=effective||vision||name||'';
+  if(name)serviceState.model=name;
+  const dual=effectiveVisionModel&&currentLLMModel&&effectiveVisionModel!==currentLLMModel;
+  $('#composerModel').textContent=dual?`${currentLLMModel} · 识图 ${effectiveVisionModel}`:(currentLLMModel||'选择模型');
+  const tip=dual?`对话模型：${currentLLMModel}｜识图模型：${effectiveVisionModel}`:`对话模型：${currentLLMModel}`;
+  $('#llmSelector').title='切换模型（'+tip+'）';
+  $('#connChip').title=tip;
+  renderPendingFiles();
+}
+function syncLLMRoleTabs(role=llmPickerRole){
+  llmPickerRole=role==='vision'?'vision':'chat';
+  $$('#llmRoleTabs [data-llm-role]').forEach(button=>{
+    const on=button.dataset.llmRole===llmPickerRole;
+    button.classList.toggle('on',on);
+    button.setAttribute('aria-selected',String(on));
+  });
+  const hint=$('#llmRoleHint');
+  if(hint)hint.textContent=llmPickerRole==='vision'?'专职识图模型（解读上传图像与工具绘制的 EEG 图表）；「自动」跟随当前对话模型':'负责任务规划、工具调用与报告生成（可自由选择纯文本强推理模型）';
+}
 function renderLLMModels(){
   const query=$('#llmSearch').value.trim().toLowerCase(),box=$('#llmOptions');box.replaceChildren();
-  const models=llmModels.filter(model=>model.toLowerCase().includes(query)&&(!hasImageInput()||modelCapabilities[model]?.image_input));
+  if(llmPickerRole==='vision'){
+    const autoBtn=document.createElement('button');autoBtn.className='llm-option';autoBtn.dataset.visionModel='auto';autoBtn.setAttribute('role','option');autoBtn.setAttribute('aria-selected',String(!currentVisionModel));
+    autoBtn.innerHTML=`<span class="llm-name">自动跟随对话模型${defaultVisionModel&&!currentVisionModel&&!modelCapabilities[currentLLMModel]?.image_input?'（全局 '+esc(defaultVisionModel)+'）':''}</span><span class="llm-tail"><span class="llm-default">自动</span>${!currentVisionModel?'<span class="ms">check_circle</span>':''}</span>`;
+    autoBtn.onclick=()=>selectVisionModel('auto').catch(reportError);box.appendChild(autoBtn);
+    const visionModels=llmModels.filter(model=>modelCapabilities[model]?.image_input&&model.toLowerCase().includes(query));
+    if(!visionModels.length){
+      const empty=document.createElement('div');empty.className='llm-empty';
+      empty.textContent=query?'没有匹配的识图模型':'当前网关列表中未检测到支持视觉输入的模型，请检查 configs/conversation_models.json';
+      box.appendChild(empty);return;
+    }
+    for(const model of visionModels){
+      const cap=modelCapabilities[model]||{},selected=model===currentVisionModel;
+      const button=document.createElement('button');button.className='llm-option';button.dataset.model=model;button.setAttribute('role','option');button.setAttribute('aria-selected',String(selected));
+      const badgeTitle=cap.source==='verified'?'配置已验证支持视觉输入':'按模型家族自动识别视觉能力';
+      button.innerHTML=`<span class="llm-name">${esc(model)}</span><span class="llm-tail"><span class="llm-default" title="${badgeTitle}">${cap.source==='verified'?'已验证看图':'看图'}</span>${model===defaultVisionModel?'<span class="llm-default">推荐</span>':''}${selected?'<span class="ms">check_circle</span>':''}</span>`;
+      button.onclick=()=>selectVisionModel(model).catch(reportError);box.appendChild(button);
+    }
+    return;
+  }
+  const models=llmModels.filter(model=>model.toLowerCase().includes(query));
   if(!models.length){box.innerHTML='<div class="llm-empty">没有匹配的模型</div>';return}
   for(const model of models){
+    const cap=modelCapabilities[model]||{};
     const button=document.createElement('button');button.className='llm-option';button.dataset.model=model;button.setAttribute('role','option');button.setAttribute('aria-selected',String(model===currentLLMModel));
-    button.innerHTML=`<span class="llm-name">${esc(model)}</span><span class="llm-tail">${modelCapabilities[model]?.image_input?'<span class="llm-default">看图</span>':''}${model===defaultLLMModel?'<span class="llm-default">默认</span>':''}${model===currentLLMModel?'<span class="ms">check_circle</span>':''}</span>`;
+    button.innerHTML=`<span class="llm-name">${esc(model)}</span><span class="llm-tail">${cap.image_input?'<span class="llm-default">看图</span>':''}${model===defaultLLMModel?'<span class="llm-default">默认</span>':''}${model===currentLLMModel?'<span class="ms">check_circle</span>':''}</span>`;
     button.onclick=()=>selectLLMModel(model).catch(reportError);box.appendChild(button);
   }
 }
 async function loadLLMModels(){
-  const box=$('#llmOptions');box.innerHTML='<div class="llm-empty">读取模型…</div>';
-  try{const result=await api('/llm/models');llmModels=result.models;modelCapabilities=result.capabilities||{};defaultLLMModel=result.default_model||'';renderLLMModels();renderPendingFiles()}
-  catch(error){box.replaceChildren();const text=document.createElement('div');text.className='llm-empty';text.textContent=error.message;box.appendChild(text)}
+  const box=$('#llmOptions');if(!llmModels.length)box.innerHTML='<div class="llm-empty">读取模型…</div>';
+  try{
+    const result=await api('/llm/models');
+    llmModels=result.models||[];
+    modelCapabilities=result.capabilities||{};
+    defaultLLMModel=result.default_model||'';
+    defaultVisionModel=result.default_vision_model||'';
+    if(!currentLLMModel&&defaultLLMModel)currentLLMModel=defaultLLMModel;
+    if(!effectiveVisionModel)effectiveVisionModel=currentVisionModel||currentLLMModel;
+    syncLLMRoleTabs(llmPickerRole);
+    renderLLMModels();
+    if(currentLLMModel)setConversationModel(currentLLMModel,currentVisionModel,effectiveVisionModel);
+    else renderPendingFiles();
+  }catch(error){
+    box.replaceChildren();const text=document.createElement('div');text.className='llm-empty';text.textContent=error.message;box.appendChild(text);
+  }
 }
 async function selectLLMModel(model){
   if(changingModel)return;await ensureSession();const id=sessionId,version=viewVersion;changingModel=true;autosize();
-  try{const result=await api(`/sessions/${id}/model`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});
-    if(version===viewVersion){setConversationModel(result.llm_model);$('#llmPicker').hidePopover();snack('已切换为 '+result.llm_model)}
+  try{
+    const body={model};
+    if(typeof effectiveVisionModel!=='undefined'&&hasImageInput()&&!modelCapabilities[model]?.image_input){
+      const fallbackVision=modelCapabilities[effectiveVisionModel]?.image_input?effectiveVisionModel:(defaultVisionModel||llmModels.find(name=>modelCapabilities[name]?.image_input)||'');
+      if(fallbackVision&&fallbackVision!==currentVisionModel)body.vision_model=fallbackVision;
+    }
+    const result=await api(`/sessions/${id}/model`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(version===viewVersion){
+      setConversationModel(result.llm_model,result.vision_model,result.effective_vision_model);
+      $('#llmPicker').hidePopover();
+      const note=result.vision_model&&result.vision_model!==result.llm_model?`（识图：${result.effective_vision_model}）`:'';
+      snack('对话模型已切换为 '+result.llm_model+note);
+    }
+  }finally{changingModel=false;autosize()}
+}
+async function selectVisionModel(visionModel){
+  if(changingModel)return;await ensureSession();const id=sessionId,version=viewVersion;changingModel=true;autosize();
+  try{
+    const result=await api(`/sessions/${id}/model`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({vision_model:visionModel})});
+    if(version===viewVersion){
+      setConversationModel(result.llm_model,result.vision_model,result.effective_vision_model);
+      renderLLMModels();
+      $('#llmPicker').hidePopover();
+      snack(result.vision_model?'识图模型已设置为 '+result.vision_model:'识图模型已恢复自动跟随（当前：'+(result.effective_vision_model||result.llm_model)+'）');
+    }
   }finally{changingModel=false;autosize()}
 }
 $('#llmSelector').onclick=()=>{
   const picker=$('#llmPicker');if(picker.matches(':popover-open')){picker.hidePopover();return}
-  $('#llmSearch').value='';picker.showPopover();$('#llmSearch').focus();loadLLMModels().catch(reportError);
+  syncLLMRoleTabs(llmPickerRole);$('#llmSearch').value='';picker.showPopover();$('#llmSearch').focus();loadLLMModels().catch(reportError);
 };
 $('#llmPicker').addEventListener('toggle',()=>$('#llmSelector').setAttribute('aria-expanded',String($('#llmPicker').matches(':popover-open'))));
 $('#llmSearch').addEventListener('input',renderLLMModels);$('#refreshLLMModels').onclick=()=>loadLLMModels().catch(reportError);
@@ -1199,6 +1406,8 @@ $('#input').addEventListener('paste',event=>{
   queueFiles(images.map((item,index)=>{const file=item.getAsFile();return new File([file],`粘贴图片-${stamp}${index?'-'+(index+1):''}.${file.name.split('.').at(-1)||'png'}`,{type:file.type,lastModified:Date.now()})}));
 });
 $$('[data-model-task]').forEach(button=>button.onclick=()=>{modelTask=button.dataset.modelTask;$$('[data-model-task]').forEach(b=>b.classList.toggle('on',b===button));renderModels()});
+$$('#llmRoleTabs [data-llm-role]').forEach(button=>button.onclick=()=>{syncLLMRoleTabs(button.dataset.llmRole);renderLLMModels();$('#llmSearch').focus()});
+$$('#resultTypeFilters [data-result-type]').forEach(button=>button.onclick=()=>{resultTypeFilter=button.dataset.resultType;renderResultCatalog()});
 $$('.tab').forEach(t=>t.onclick=()=>showTab(t.dataset.tab));
 $('.tabs').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const tabs=$$('.tab:not([hidden])'),index=tabs.indexOf(document.activeElement),next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;showTab(tabs[next].dataset.tab);tabs[next].focus()});
 showTab('data');
@@ -1216,9 +1425,9 @@ $('#themeBtn').onclick=()=>{const dark=document.documentElement.dataset.theme!==
 api('/health').then(j=>{
   serviceState={worker:j.worker,model:j.model||'未配置'};
   $('#workerStatus').textContent=j.worker==='ok'?'本地服务':'服务未就绪';$('#workerDot').classList.toggle('on',j.worker==='ok');if(!currentLLMModel)setConversationModel(serviceState.model);
-  $('#connChip').title='对话模型：'+currentLLMModel;
   if(!streaming&&!uploading)restoreStatus();
 }).catch(()=>{serviceState={worker:'unavailable',model:'—'};$('#workerStatus').textContent='网关未启动';$('#workerDot').classList.remove('on');if(!streaming&&!uploading)restoreStatus()});
+loadLLMModels().catch(()=>{});
 api('/models').then(result=>{modelCatalog=result.models;renderModels()}).catch(error=>{$('#modelList').textContent='无法读取模型目录：'+error.message});
 api('/skills').then(list=>{skillCatalog=list;updateCommands();const box=$('#skillList');(list||[]).forEach(s=>{const c=document.createElement('div');c.className='card skillcard';c.innerHTML=`<div class="title-s">${esc(SKILL_NAMES[s.name]||s.name)}</div><div class="desc">${esc(s.description)}</div>${s.note?`<div class="warnline">${esc(s.note)}</div>`:''}<button class="chip small" data-activate-skill="${esc(s.name)}" style="margin-top:10px">选用此方法</button><details class="skill-tech"><summary><span class="ms">chevron_right</span>命令与工具</summary><div class="skill-command">/${esc(SKILL_NAMES[s.name]||s.name)}</div><div class="tags">${(s.allowed_tools||[]).map(t=>`<span class="src">${esc(TOOL_LABEL[t]||t)}</span>`).join('')}</div></details>`;box.appendChild(c)})}).catch(e=>{$('#skillList').textContent='无法加载分析能力：'+e.message});
 refreshSessions().catch(reportError);

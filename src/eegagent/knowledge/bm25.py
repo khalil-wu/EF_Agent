@@ -33,3 +33,19 @@ class BM25:
         scored = [(i, s) for i, s in scored if s > 0]
         scored.sort(key=lambda x: -x[1])
         return scored[:n]
+
+    def score_weighted(self, q_weights: dict[str, float], i: int) -> float:
+        s = 0.0
+        tf, dl = self.tf[i], self.dl[i]
+        for t, w in q_weights.items():
+            if t not in tf or w <= 0:
+                continue
+            f = tf[t]
+            s += w * self.idf.get(t, 0.0) * f * (self.k1 + 1) / (f + self.k1 * (1 - self.b + self.b * dl / self.avgdl))
+        return s
+
+    def top_weighted(self, q_weights: dict[str, float], n: int) -> list[tuple[int, float]]:
+        scored = [(i, self.score_weighted(q_weights, i)) for i in range(self.n)]
+        scored = [(i, s) for i, s in scored if s > 0]
+        scored.sort(key=lambda x: -x[1])
+        return scored[:n]

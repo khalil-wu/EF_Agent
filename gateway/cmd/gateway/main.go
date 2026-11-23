@@ -177,7 +177,7 @@ func main() {
 				ms = prompt.StripCompat(ms)
 			}
 			// Read the session's current workspace and its protocol on each request, including after a switch or file edit.
-			parts := []string{prompt.FileContext(ms), prompt.WorkspaceContext(storageDir, s.WorkspaceID)}
+			parts := []string{prompt.FileContextWithVision(ms, s.ImageObservations), prompt.WorkspaceContext(storageDir, s.WorkspaceID)}
 			if rc := prompt.RuntimeContext(s.Artifacts, s.ScratchFiles); rc != "" {
 				parts = append(parts, rc)
 			}
@@ -212,6 +212,7 @@ func main() {
 
 	srv := server.New(cfg, wc, storageDir)
 	srv.ModelName = model
+	srv.VisionModelName = os.Getenv("EEGAGENT_VISION_MODEL")
 	srv.ModelProxy = proxyMode
 	srv.BuildID = env("EEGAGENT_GATEWAY_BUILD_ID", env("EEGAGENT_BUILD_ID", "development"))
 	srv.ConfigID = os.Getenv("EEGAGENT_GATEWAY_CONFIG_ID")

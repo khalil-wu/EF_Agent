@@ -92,17 +92,66 @@ class KnowledgeIndex:
         if not self.chunks:
             return {"chunks": [], "facts": [], "entities": []}
         q = tokenize(query)
-        bm = self.bm25.top(q, CAND)
-        de = self._dense_top(query, CAND)
         use_graph = expand_graph and bool(self.graph.entities)
         q_ents = self.graph.link_text(query, limit=6) if use_graph else []
-        # third retriever (entity level): the chunks that define each entity named in the query
+
+        # Cross-lingual entity-alias expansion for sparse BM25 retrieval.
+        if q_ents:
+            q_weights: dict[str, float] = {}
+            for tok in q:
+                q_weights[tok] = 1.0
+            for eid in q_ents:
+                ent_obj = self.graph.entities.get(eid)
+                if not ent_obj:
+                    continue
+                for alias in [ent_obj.name, *ent_obj.aliases[:6]]:
+                    for tok in tokenize(alias):
+                        if tok not in q_weights:
+                            q_weights[tok] = 0.35
+            bm = self.bm25.top_weighted(q_weights, CAND)
+        else:
+            bm = self.bm25.top(q, CAND)
+
+        de = self._dense_top(query, CAND)
+
+        # Third retriever (entity & 2-hop graph propagation level, inspired by HippoRAG 2).
         ent: list[int] = []
-        for eid in q_ents:
-            for cid in self.graph.entities[eid].chunk_ids[:2]:
-                i = self._pos.get(cid)
-                if i is not None and i not in ent:
-                    ent.append(i)
+        ent_scores: dict[str, float] = {eid: 1.0 for eid in q_ents}
+        if use_graph and q_ents:
+            frontier = list(q_ents)
+            for hop_decay in (0.5, 0.22):
+                next_frontier: list[str] = []
+                for eid in frontier:
+                    base_score = ent_scores.get(eid, 0.0)
+                    for r in self.graph.relations_of(eid):
+                        if r.unresolved:
+                            continue
+                        other = r.dst if r.src == eid else r.src
+                        propagated = base_score * hop_decay * max(0.1, min(1.0, r.confidence))
+                        if propagated > ent_scores.get(other, 0.0):
+                            if other not in ent_scores:
+                                next_frontier.append(other)
+                            ent_scores[other] = propagated
+                frontier = next_frontier[:18]
+
+            graph_chunk_scores: dict[int, float] = {}
+            for eid, e_score in ent_scores.items():
+                ent_obj = self.graph.entities.get(eid)
+                if ent_obj:
+                    for cid in ent_obj.chunk_ids[:3]:
+                        pos = self._pos.get(cid)
+                        if pos is not None:
+                            graph_chunk_scores[pos] = graph_chunk_scores.get(pos, 0.0) + e_score
+                for r in self.graph.relations_of(eid):
+                    if r.unresolved or not r.chunk_ids:
+                        continue
+                    rel_weight = 0.6 * max(0.1, min(1.0, r.confidence)) * max(ent_scores.get(r.src, 0.0), ent_scores.get(r.dst, 0.0))
+                    for cid in r.chunk_ids[:2]:
+                        pos = self._pos.get(cid)
+                        if pos is not None:
+                            graph_chunk_scores[pos] = graph_chunk_scores.get(pos, 0.0) + rel_weight
+            ent = [pos for pos, _ in sorted(graph_chunk_scores.items(), key=lambda x: -x[1])[:CAND]]
+
         fused: dict[int, float] = {}
         for ranked in (bm, de, [(i, 0.0) for i in ent]):
             for rank, (i, _) in enumerate(ranked):
@@ -167,18 +216,23 @@ class KnowledgeIndex:
         entities: list[dict] = []
         if use_graph and q_ents:
             ranked_facts = []
-            seeds = q_ents[:6]
+            seeds = sorted(ent_scores, key=lambda eid: -ent_scores[eid])[:12]
             seen: set[str] = set()
+            q_set = set(q_ents)
             for eid in seeds:
-                ent = self.graph.entities.get(eid)
-                if ent:
-                    entities.append({"id": ent.id, "name": ent.name, "type": ent.type, "summary": ent.summary, "in_query": eid in q_ents})
+                ent_obj = self.graph.entities.get(eid)
+                if ent_obj:
+                    entities.append({"id": ent_obj.id, "name": ent_obj.name, "type": ent_obj.type,
+                                     "summary": ent_obj.summary, "in_query": eid in q_set})
                 for r in self.graph.relations_of(eid):
                     if r.id in seen:
                         continue
                     seen.add(r.id)
-                    # prefer facts touching a query entity
-                    ranked_facts.append((0 if (r.src in q_ents or r.dst in q_ents) else 1, r.unresolved, -r.confidence, self.graph.fact_row(r)))
+                    both_activated = ent_scores.get(r.src, 0.0) > 0 and ent_scores.get(r.dst, 0.0) > 0
+                    touches_query = r.src in q_set or r.dst in q_set
+                    priority = 0 if (both_activated and touches_query) else (1 if both_activated else (2 if touches_query else 3))
+                    rel_score = r.confidence * (ent_scores.get(r.src, 0.0) + ent_scores.get(r.dst, 0.0))
+                    ranked_facts.append((priority, r.unresolved, -rel_score, self.graph.fact_row(r)))
             ranked_facts.sort(key=lambda x: x[:3])
             facts = [{**f[3], "evidence": [cid for cid in f[3]["evidence"] if ok(self.by_id[cid])]} for f in ranked_facts]
         return {**bundle_facts(rows, facts, self.by_id), "entities": entities}
@@ -224,10 +278,15 @@ def search_knowledge(query: str, k: int = 5, domain: str | None = None, tasks: l
     project = index() if scope != "session" else None
     res = project.search(query, k=k, domain=domain, tasks=tasks, doc_type=doc_type, expand_graph=expand_graph) if project else {"chunks": [], "facts": [], "entities": []}
     uploaded = search_documents(query, session_id, k) if scope != "project" and doc_type in (None, "document") and domain in (None, "uploaded") else []
-    # Rank fusion avoids comparing scores from two BM25 corpora directly.
+    # Balanced RRF fusion across session documents and project knowledge instead of blindly burying project papers.
     matches = [row for row in res["chunks"] if row["retrieval_role"] == "match"]
-    combined = [(rank, priority, row) for priority, rows in enumerate((uploaded, matches)) for rank, row in enumerate(rows)]
-    rows = [{**row, "retrieval_role": "match"} for _, _, row in sorted(combined, key=lambda item: item[:2])[:k]]
+    scored_pool: list[tuple[float, int, dict]] = []
+    for rank, row in enumerate(uploaded):
+        scored_pool.append((1.02 / (20 + rank + 1), 0, row))
+    for rank, row in enumerate(matches):
+        scored_pool.append((1.0 / (20 + rank + 1), 1, row))
+    scored_pool.sort(key=lambda item: (-item[0], item[1]))
+    rows = [{**row, "retrieval_role": "match"} for _, _, row in scored_pool[:k]]
     rows = merge_sources(rows, [row for row in res["chunks"] if row["retrieval_role"] == "source_support"])
     res.update(bundle_facts(rows, res["facts"], project.by_id) if project else {"chunks": rows})
     note = ("按原文支持的结论引用 [chunk_id]；source_support 是关联原文，关系引用 evidence 块。"

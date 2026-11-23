@@ -27,7 +27,7 @@ import (
 
 const Preamble = `你是 EFAgent，在用户的数据工作区里动手完成脑电与人脸多模态研究任务的分析助手。你理解问题、选择方法、调用工具计算、检查结果，然后像资深研究同事一样直接给出结论。信号计算交给工具，方法选择和结果解释由你负责。`
 
-const ReplyFormat = `按最近的用户问题决定详略。简短报告先给主要发现、关键数值和时间范围，正文约 200 字；详细报告、教程或方法比较按用户要求展开。解释关键图时采用产物的真实中文名称，用一句话说明这张图展示什么与主要观察，按需要内嵌关键图的真实 artifact 链接。完整文件目录由界面承载，中间产物保留在目录里；正文只保留与问题有关的图和文件入口，链接采用工具返回的 result_links。图的用途采用 summary.title/description 与实际内容，ICA 成分头皮权重图描述空间分布，清洗前后比较采用对应的对照图。参数、处理链、内部 ID 和逐窗读数留在方法材料中。`
+const ReplyFormat = `按最近的用户问题决定详略。简短报告先给主要发现、关键数值和时间范围，正文约 200 字；详细报告、教程或方法比较按用户要求展开。解释关键图时采用产物的真实中文名称（取自 result_links 的 title），用一句话说明这张图展示什么与主要观察，并在对应段落后用 ![真实中文图名](artifact://art_...) 内嵌最关键的 1–2 张图表。完整文件目录由界面承载，中间产物保留在目录里；正文只保留与问题有关的图和文件入口，链接采用工具返回的 result_links。图的用途采用 summary.title/description 与实际内容，ICA 成分头皮权重图描述空间分布，清洗前后比较采用对应的对照图。参数、处理链、内部 ID 和逐窗读数留在方法材料中。`
 
 const Dialogue = `先回答用户问的问题：第一句给结论或主要发现，再给支撑它的关键数值、通道和时间。默认用自然的短段落，比较用表格。
 多步分析在第一批工具前用 1–2 句公开工作计划说明目标、主要方法和交付物；重要结果返回后，用 1–2 句交代具体发现与下一步。工作计划和分析进展写在正常回复正文，和工具调用一起发出，让用户在执行时看得见。每次推进说明新事实或新决定，准备步骤和已说过的计划不用逐条重复。工具名、参数和执行状态由界面展示。问候、闲聊和已有结果的解释直接回答，按任务需要才调用工具。
@@ -211,13 +211,22 @@ func StripCompat(ms []*contracts.Manifest) []*contracts.Manifest {
 
 // FileContext is L5: manifests rendered compactly with their compat tables. Dynamic.
 func FileContext(ms []*contracts.Manifest) string {
+	return FileContextWithVision(ms, nil)
+}
+
+// FileContextWithVision renders manifests and optional vision-model observations for text-first orchestrators.
+func FileContextWithVision(ms []*contracts.Manifest, observations map[string]string) string {
 	if len(ms) == 0 {
 		return "<file_context>\n本会话暂无已登记附件。可直接读取本次引用或工作区路径，按任务所需登记结构、处理数据和保存结果；目标未知时先查找。\n</file_context>"
 	}
 	var b strings.Builder
 	b.WriteString("<file_context>\n以下元数据供计算与工具选择使用，回答按用户问题组织。\n")
 	for _, m := range ms {
-		b.WriteString(renderManifest(m))
+		obs := ""
+		if observations != nil {
+			obs = observations[m.ManifestID]
+		}
+		b.WriteString(renderManifestWithVision(m, obs))
 		b.WriteString("\n")
 	}
 	b.WriteString("</file_context>")
@@ -225,6 +234,10 @@ func FileContext(ms []*contracts.Manifest) string {
 }
 
 func renderManifest(m *contracts.Manifest) string {
+	return renderManifestWithVision(m, "")
+}
+
+func renderManifestWithVision(m *contracts.Manifest, visionObservation string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "- manifest_id=%s modality=%s format=%s dataset=%s", m.ManifestID, m.Modality, m.SourceFormat, m.Dataset)
 	if m.FormatProfile != "" {
@@ -320,7 +333,11 @@ func renderManifest(m *contracts.Manifest) string {
 		if m.Width != nil && m.Height != nil {
 			fmt.Fprintf(&b, "\n  image_size=%dx%d", *m.Width, *m.Height)
 		}
-		b.WriteString("\n  图片像素已随本次请求提供。直接观察图中的坐标、图例、标注与趋势，再回答用户的问题；精确数值从已有分析产物读取。")
+		if strings.TrimSpace(visionObservation) != "" {
+			fmt.Fprintf(&b, "\n  vision_observation=%q\n  以上为识图模型提取的视觉结构信息；如需核对局部细节或进一步看图，可调用 inspect_image(target_id=%q, question=...)。精确数值仍以分析产物为准。", strings.TrimSpace(visionObservation), m.ManifestID)
+		} else {
+			b.WriteString("\n  图片像素已随本次请求提供。直接观察图中的坐标、图例、标注与趋势，再回答用户的问题；精确数值从已有分析产物读取。")
+		}
 	}
 	if len(m.Compat) > 0 {
 		b.WriteString("\n  compat:")

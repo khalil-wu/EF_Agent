@@ -98,10 +98,11 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "output_schema": {"type": "object"}, **_RO,
     },
     {
-        "name": "save_to_workspace", "version": "1.0",
-        "description": "将真实分析产物复制到当前工作区的指定相对文件路径，保留原产物及来源记录。path须包含文件名；自动创建父目录，现存目标只有overwrite=true才覆盖。",
+        "name": "save_to_workspace", "version": "1.1",
+        "description": "将真实分析产物复制到当前工作区的指定相对文件路径，保留原产物及来源记录。path须包含文件名；自动创建父目录，现存目标只有overwrite=true才覆盖。图表产物可通过 format 指定 png/svg/pdf。",
         "input_schema": {"type": "object", "properties": {
             "artifact_id": {"type": "string"}, "path": {"type": "string"},
+            "format": {"type": "string", "description": "可选表示格式（如图表的 png/svg/pdf）"},
             "overwrite": {"type": "boolean", "default": False}}, "required": ["artifact_id", "path"]},
         "output_schema": {"type": "object"}, **_RO,
     },
@@ -425,7 +426,7 @@ DISPATCH: dict[str, Callable[..., dict]] = {
     "read_file": lambda a, sid: read_file(a["path"], a.get("offset", 1), a.get("limit", 200), sid, a.get("workspace_id"), a.get("char_offset", 0)),
     "write_file": lambda a, sid: write_file(a.get("workspace_id"), a["path"], a["content"], a.get("overwrite", False)),
     "edit_file": lambda a, sid: edit_file(a.get("workspace_id"), a["path"], a["old_text"], a["new_text"], a.get("replace_all", False)),
-    "save_to_workspace": lambda a, sid: save_to_workspace(a.get("workspace_id"), a["artifact_id"], a["path"], a.get("overwrite", False)),
+    "save_to_workspace": lambda a, sid: save_to_workspace(a.get("workspace_id"), a["artifact_id"], a["path"], a.get("overwrite", False), a.get("format")),
     "read_document": lambda a, sid: read_document(a["manifest_id"], a.get("page", 1), a.get("limit", 3), a.get("offset", 0), sid),
     "register_attachment": lambda a, sid: register_attachment(a["path"], sid),
     "register_upload": lambda a, sid: _run_upload(a, sid),
@@ -494,9 +495,18 @@ def _run_tool(name: str, args: dict) -> dict:
         result = DISPATCH[name](args, session_id)
     artifacts = ([result["artifact"]] if "artifact" in result else []) + result.get("artifacts", [])
     if artifacts:
-        result["result_links"] = [{"artifact_id": record["artifact_id"], "kind": record["kind"],
-                                   "format": record["summary"].get("format"),
-                                   "uri": "artifact://" + record["artifact_id"],
-                                   "download_url": "/artifacts/" + record["artifact_id"] + "/file"}
-                                  for record in artifacts]
+        result["result_links"] = [
+            {
+                "artifact_id": record["artifact_id"],
+                "kind": record["kind"],
+                "subkind": (record.get("summary") or {}).get("kind"),
+                "title": (record.get("summary") or {}).get("title"),
+                "description": (record.get("summary") or {}).get("description"),
+                "format": (record.get("summary") or {}).get("format"),
+                "time_range_s": record.get("time_range_s"),
+                "uri": "artifact://" + record["artifact_id"],
+                "download_url": "/artifacts/" + record["artifact_id"] + "/file",
+            }
+            for record in artifacts
+        ]
     return result

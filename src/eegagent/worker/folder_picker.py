@@ -83,9 +83,24 @@ def _choose_windows_directory() -> str | None:
         ole32.CoUninitialize()
 
 
+def _choose_macos_directory() -> str | None:
+    """Use AppleScript native folder chooser on macOS."""
+    script = f'POSIX path of (choose folder with prompt "{TITLE}")'
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, encoding="utf-8")
+    if result.returncode != 0:
+        if "-128" in result.stderr:
+            return None
+        raise RuntimeError(result.stderr.strip() or f"文件夹选择器退出，代码 {result.returncode}")
+    path = result.stdout.strip()
+    if len(path) > 1:
+        path = path.rstrip("/")
+    return path or None
+
+
 def main() -> None:
-    sys.stdout.reconfigure(encoding="utf-8")
-    path = _choose_windows_directory()
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    path = _choose_macos_directory() if sys.platform == "darwin" else _choose_windows_directory()
     print(json.dumps({"path": path} if path else {"cancelled": True}, ensure_ascii=False), flush=True)
 
 

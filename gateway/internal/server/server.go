@@ -51,6 +51,7 @@ type Server struct {
 	Worker            *worker.Client
 	StorageDir        string
 	ModelName         string
+	VisionModelName   string
 	ModelProxy        string
 	ModelCapabilities map[string]llm.ModelCapability
 	BuildID           string
@@ -113,6 +114,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /sessions/{id}/stop", s.stop)
 	mux.HandleFunc("GET /artifacts/{id}", s.artifactRecord)
 	mux.HandleFunc("GET /artifacts/{id}/file", s.artifactFile)
+	mux.HandleFunc("POST /sessions/{id}/artifacts/{artifact_id}/save", s.saveArtifactToWorkspace)
 	mux.HandleFunc("GET /knowledge/{id}", s.knowledgeChunk)
 	mux.HandleFunc("GET /sessions/{session_id}/knowledge/{id}", s.knowledgeChunk)
 	mux.HandleFunc("GET /knowledge", s.knowledgeStats)
@@ -212,7 +214,12 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, 200, map[string]string{"session_id": id, "llm_model": ses.LLMModel})
+	writeJSON(w, 200, map[string]string{
+		"session_id":             id,
+		"llm_model":              ses.LLMModel,
+		"vision_model":           ses.VisionModel,
+		"effective_vision_model": s.effectiveVisionModel(ses),
+	})
 }
 
 // get returns the in-memory session, loading it from disk on first touch.
@@ -278,8 +285,11 @@ func (s *Server) publishLocked(ses *agent.Session) {
 		"usage":     ses.Usage,
 		"knowledge": ses.Knowledge, "sources": ses.Sources, "knowledge_facts": ses.KnowledgeFacts, "scratch_files": ses.ScratchFiles,
 		"active_skill": skillName(ses), "running": s.cancels[ses.ID] != nil, "previews": ses.Previews,
-		"pending_input": ses.PendingInput,
-		"llm_model":     s.conversationModel(ses), "workspace_id": ses.WorkspaceID,
+		"pending_input":          ses.PendingInput,
+		"llm_model":              s.conversationModel(ses),
+		"vision_model":           ses.VisionModel,
+		"effective_vision_model": s.effectiveVisionModel(ses),
+		"workspace_id":           ses.WorkspaceID,
 		"last_error": ses.LastError, "last_stopped": ses.LastStopped, "parent_session_id": ses.ParentSessionID, "deleted_at": ses.DeletedAt, "created_at": ses.CreatedAt, "updated_at": ses.UpdatedAt})
 	if err != nil {
 		panic(err)
@@ -537,6 +547,37 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
+	// Pre-register referenced workspace images outside the server mutex so vision_path is ready for either route.
+	autoImageManifests := map[int]*contracts.Manifest{}
+	if s.Worker != nil {
+		for idx, ref := range references {
+			if ref.ManifestID != "" || ref.Kind == "directory" || (!isImageFilename(ref.Path) && !isImageFilename(ref.Name)) {
+				continue
+			}
+			wsID := ref.WorkspaceID
+			if wsID == "" {
+				s.mu.Lock()
+				wsID = ses.WorkspaceID
+				s.mu.Unlock()
+			}
+			if wsID == "" {
+				continue
+			}
+			inspectArgs, _ := json.Marshal(map[string]any{"action": "inspect", "path": ref.Path, "_workspace_id": wsID, "_session_id": ses.ID})
+			if body, werr := s.Worker.Call(r.Context(), "workspace_files", inspectArgs); werr == nil {
+				var out struct {
+					Manifest *contracts.Manifest `json:"manifest"`
+				}
+				if json.Unmarshal(body, &out) == nil && out.Manifest != nil {
+					if out.Manifest.OriginalName == "" {
+						out.Manifest.OriginalName = ref.Name
+					}
+					references[idx].ManifestID = out.Manifest.ManifestID
+					autoImageManifests[idx] = out.Manifest
+				}
+			}
+		}
+	}
 	var presentation *llm.InputPresentation
 	if len(references) > 0 {
 		text := in.DisplayText
@@ -561,7 +602,7 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, map[string]string{"error": "文件正在读取，请稍后发送"})
 		return
 	}
-	if s.hasImageInput(ses, in.Attachments) && !s.ModelCapabilities[s.conversationModel(ses)].ImageInput {
+	if s.hasImageInputWithRefs(ses, in.Attachments, references) && !s.modelCapability(s.effectiveVisionModel(ses)).ImageInput {
 		s.mu.Unlock()
 		writeJSON(w, 400, map[string]any{"error": "图片问答请先选择已验证的看图模型。", "code": "image_model_required", "image_models": s.imageModels()})
 		return
@@ -649,6 +690,18 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 		presentation.References = references
 		in.Text += referenceContext(references)
 	}
+	for _, m := range autoImageManifests {
+		replaced := false
+		for i, prev := range ses.Manifests {
+			if prev.SameRecord(m) {
+				ses.Manifests[i] = m
+				replaced = true
+			}
+		}
+		if !replaced {
+			ses.Manifests = append(ses.Manifests, m)
+		}
+	}
 	// Commit only the drafts explicitly included in this submitted message.
 	remaining := ses.StagedManifests[:0]
 	for _, manifest := range ses.StagedManifests {
@@ -727,7 +780,11 @@ func (s *Server) message(w http.ResponseWriter, r *http.Request) {
 	next := in.Text
 	cfg := s.Cfg
 	cfg.Checkpoint = func(ses *agent.Session) error { return session.Save(s.StorageDir, ses) }
-	cfg.LLM = s.Cfg.LLM.WithModel(ses.LLMModel)
+	cfg.LLM = s.Cfg.LLM.WithModel(s.conversationModel(ses))
+	cfg.StorageDir = s.StorageDir
+	if effVision := s.effectiveVisionModel(ses); effVision != "" && s.modelCapability(effVision).ImageInput {
+		cfg.VisionLLM = s.Cfg.LLM.WithModel(effVision)
+	}
 	cfg.InputPresentation = presentation
 	for {
 		_, runErr := agent.Run(stopCtx, cfg, ses, next, withStop(stopCtx, emit))
@@ -841,6 +898,74 @@ func (s *Server) artifactFile(w http.ResponseWriter, r *http.Request) {
 }
 
 var artifactURLRe = regexp.MustCompile(`artifact://(art_[0-9a-f]+)`)
+
+func (s *Server) saveArtifactToWorkspace(w http.ResponseWriter, r *http.Request) {
+	ses := s.get(r.PathValue("id"))
+	if ses == nil {
+		writeJSON(w, 404, map[string]string{"error": "会话不存在"})
+		return
+	}
+	s.mu.Lock()
+	wsID := ses.WorkspaceID
+	s.mu.Unlock()
+	if wsID == "" {
+		writeJSON(w, 400, map[string]string{"error": "请先在左侧挂接一个本地工作区"})
+		return
+	}
+	if s.Worker == nil {
+		writeJSON(w, 502, map[string]string{"error": "本地计算服务不可用"})
+		return
+	}
+	artifactID := r.PathValue("artifact_id")
+	rec, err := artifacts.Load(s.StorageDir, artifactID)
+	if err != nil {
+		writeJSON(w, 404, map[string]string{"error": err.Error()})
+		return
+	}
+	var in struct {
+		Path      string `json:"path"`
+		Format    string `json:"format"`
+		Overwrite *bool  `json:"overwrite"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&in)
+	targetPath := strings.TrimSpace(in.Path)
+	format := strings.ToLower(strings.TrimSpace(in.Format))
+	if targetPath == "" {
+		ext := filepath.Ext(rec.URI)
+		if format != "" {
+			if _, ok := rec.Representations[format]; ok {
+				ext = "." + format
+			}
+		}
+		if ext == "" {
+			ext = ".dat"
+		}
+		targetPath = filepath.ToSlash(filepath.Join("outputs", artifacts.DownloadFilename(s.StorageDir, rec, ext)))
+	}
+	overwrite := true
+	if in.Overwrite != nil {
+		overwrite = *in.Overwrite
+	}
+	argsMap := map[string]any{
+		"artifact_id":   artifactID,
+		"path":          targetPath,
+		"overwrite":     overwrite,
+		"_session_id":   ses.ID,
+		"_workspace_id": wsID,
+	}
+	if format != "" {
+		argsMap["format"] = format
+	}
+	rawArgs, _ := json.Marshal(argsMap)
+	body, err := s.Worker.Call(r.Context(), "save_to_workspace", rawArgs)
+	if err != nil {
+		writeJSON(w, 502, map[string]any{"error": errString(err), "worker": workerJSON(body)})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, _ = w.Write(body)
+}
 
 func localArtifactLinks(markdown, host string) string {
 	return artifactURLRe.ReplaceAllString(markdown, "http://"+host+"/artifacts/$1/file")

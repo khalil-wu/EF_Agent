@@ -2,7 +2,7 @@ import React,{createContext,memo,useContext,useEffect,useLayoutEffect,useMemo,us
 import {createRoot} from 'react-dom/client';
 import Markdown,{type Components} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import {resultItems,resultSummary,resultDescription,workspaceDeliveries,workspaceSummary} from './result-catalog';
+import {resultItems,resultSummary,resultDescription,resultFormat,workspaceDeliveries,workspaceSummary} from './result-catalog';
 export {resultItems,resultSummary,resultTitle,resultDescription,resultFormat,isProcessResult,workspaceDeliveries,workspaceSummary,resultGroupTitle} from './result-catalog';
 import {createTranscriptStore,REASONING_PREVIEW_MS,type Message,type Tool,type Turn,type User,type FileReference} from './transcript-store';
 
@@ -84,7 +84,7 @@ function groupEntries(entries:Turn['entries'],options:Options){
   }
   return groups;
 }
-const toolIcon=(name:string)=>({list_files:'folder_open',read_file:'description',write_file:'description',edit_file:'description',save_to_workspace:'folder_open',read_document:'menu_book',read_artifact:'description',inspect_record:'troubleshoot',search_knowledge:'search',knowledge_graph:'hub',plot:'show_chart',export:'download',run_python:'terminal',route_model:'hub',list_models:'hub',check_model_compat:'rule'}[name]||'waves');
+const toolIcon=(name:string)=>({list_files:'folder_open',read_file:'description',write_file:'description',edit_file:'description',save_to_workspace:'folder_open',read_document:'menu_book',read_artifact:'description',inspect_record:'troubleshoot',inspect_image:'image',search_knowledge:'search',knowledge_graph:'hub',plot:'show_chart',export:'download',run_python:'terminal',route_model:'hub',list_models:'hub',check_model_compat:'rule'}[name]||'waves');
 const OperationGroup=memo(function OperationGroup({group,options,engage,startedAt}:{group:ToolGroup;options:Options;engage:()=>void;startedAt?:number}){
   const [expanded,setExpanded]=useState(false);
   const active=group.tools.filter(tool=>tool.status==='running'||tool.status==='preparing');
@@ -129,8 +129,11 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
   useEffect(()=>{if(row.running||!row.finishedAt||row.error||row.stopped){setRecentCompletion(false);return}setRecentCompletion(true);const timer=setTimeout(()=>setRecentCompletion(false),5000);return()=>clearTimeout(timer)},[row.running,row.finishedAt,row.error,row.stopped]);
   const answers=row.entries.filter((entry):entry is Message=>entry.type==='message'&&(entry.phase==='answer'||entry.phase==='partial'));
   const text=answers.map(entry=>entry.text).join('\n\n');
+  const allMessageText=row.entries.filter((entry):entry is Message=>entry.type==='message').map(entry=>entry.text).join('\n');
   const deliveries=workspaceDeliveries(row),saved=new Set(deliveries.flatMap(delivery=>delivery.files.map((file:any)=>file.artifact_id).filter(Boolean)));
   const artifacts=resultItems(row.artifacts,options.artifact).filter(item=>!saved.has(item.artifact_id));
+  const autoPlots=!row.running&&answers.length>0?artifacts.filter(item=>item.kind==='plot'&&!allMessageText.includes(item.artifact_id)).slice(0,2):[];
+  const deliverables=!row.running&&answers.length>0?artifacts.filter(item=>['report','prediction','emotion_assessment','table'].includes(item.kind)).slice(0,4):[];
   const writing=row.entries.some(entry=>entry.type==='message'&&entry.phase!=='commentary'&&!entry.done&&entry.text);
   const reasoningVisible=Boolean(row.reasoning)&&reasoningPhase!=='hidden';
   const label=running?running.progress?.at(-1)?.label||`${running.status==='preparing'?'准备':'正在'}${options.toolLabel(running.name)}`:writing?'正在回复':'思考中';
@@ -148,6 +151,8 @@ export const AgentTurn=memo(function AgentTurn({row,options,toggle,engage,metada
       {groups.map(entry=>entry.type==='tools'?<div className={'process-entry tool-entry'+(row.open!==false&&(entry.tools.some(tool=>tool.status==='running'||tool.status==='preparing')||recentCompletion&&entry.id===lastGroup?.id)?' is-current':'')} key={entry.id} onPointerDown={engage} onFocusCapture={engage}><OperationGroup group={entry} options={options} engage={engage} startedAt={row.startedAt}/></div>:<div key={entry.id} className={entry.phase==='commentary'?'process-entry commentary-entry'+(row.open!==false&&commentPreview===entry.id?' is-current':''):'answer-entry'} onPointerDown={entry.phase!=='answer'?engage:undefined} onFocusCapture={entry.phase!=='answer'?engage:undefined}><StreamingText message={entry} options={options} numbers={numbers} metadataVersion={metadataVersion}/></div>)}
     </div>
     {row.reasoning&&reasoningVisible&&<div className={'reasoning-preview'+(reasoningPhase==='fading'?' is-fading':'')} aria-label="模型思考"><span className="reasoning-label">思考</span><div className="reasoning-text" ref={reasoningText}>{row.reasoning.text}</div></div>}
+    {autoPlots.length>0&&<div className={'response-gallery'+(autoPlots.length>1?' two-col':'')}>{autoPlots.map(item=><span key={item.artifact_id} className="response-figure"><button type="button" className="response-figure-open" onClick={()=>options.openArtifact(item.artifact_id)} aria-label={'查看'+options.artifactTitle(item)}><img className="report-image" src={'/artifacts/'+item.artifact_id+'/file'} alt={options.artifactTitle(item)}/></button><span className="figure-caption"><strong>{options.artifactTitle(item)}</strong>{resultDescription(item)&&<span>{resultDescription(item)}</span>}</span></span>)}</div>}
+    {deliverables.length>0&&<div className="turn-deliverables" aria-label="本轮主要交付产物">{deliverables.map(item=><button key={item.artifact_id} type="button" className="deliverable-chip" onClick={()=>options.openArtifact(item.artifact_id)} title={options.artifactTitle(item)}><Icon name={item.kind==='report'?'description':item.kind==='table'?'table_view':'insights'}/><span><strong>{options.artifactTitle(item)}</strong><small>{resultFormat(item)}</small></span></button>)}</div>}
     {(artifacts.length>0||deliveries.length>0)&&<button className="turn-results-link" aria-label={`查看本轮全部结果：${[artifacts.length?resultSummary(artifacts):'',deliveries.length?workspaceSummary(deliveries):''].filter(Boolean).join(' · ')}`} onClick={()=>options.openResults(row.id)}><Icon name="folder_open"/><span><strong>本轮结果</strong><small>{[artifacts.length?resultSummary(artifacts):'',deliveries.length?workspaceSummary(deliveries):''].filter(Boolean).join(' · ')}</small></span><span className="results-open-label">查看全部</span><Icon name="chevron_right"/></button>}
     {numbers.size>0&&answers.length>0&&<div className="turn-sources"><span className="sources-label">来源</span>{[...sourceGroups].map(([key,group])=><button key={key} className="source-chip" data-know={group.id} title={options.sourceTitle(group.source)+' · 引用 '+group.numbers.join('、')}><span className="source-number">{group.numbers.join(',')}</span><span className="source-chip-title">{options.sourceTitle(group.source)}</span></button>)}</div>}
     {row.running&&!row.waiting&&!toolActivityVisible&&!publicProgressVisible&&!writing&&!reasoningVisible&&<div className="active-status" role="status" data-activity={running?'working':row.activity||'thinking'}><span className="working-dot" aria-hidden="true"/><span>{label}</span><Elapsed start={row.startedAt}/></div>}

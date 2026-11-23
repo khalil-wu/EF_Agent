@@ -25,9 +25,11 @@ type Snapshot struct {
 	Title            string                     `json:"title"`
 	ParentSessionID  string                     `json:"parent_session_id,omitempty"`
 	DeletedAt        *time.Time                 `json:"deleted_at,omitempty"`
-	Mode             contracts.PermissionMode   `json:"mode"`
-	LLMModel         string                     `json:"llm_model,omitempty"`
-	WorkspaceID      string                     `json:"workspace_id,omitempty"`
+	Mode              contracts.PermissionMode   `json:"mode"`
+	LLMModel          string                     `json:"llm_model,omitempty"`
+	VisionModel       string                     `json:"vision_model,omitempty"`
+	ImageObservations map[string]string          `json:"image_observations,omitempty"`
+	WorkspaceID       string                     `json:"workspace_id,omitempty"`
 	ActiveSkill      string                     `json:"active_skill"`
 	Messages         []llm.Message              `json:"messages"`
 	ArchivedMessages []llm.Message              `json:"archived_messages,omitempty"`
@@ -79,6 +81,8 @@ func Save(storage string, s *agent.Session) error {
 	snap.Sources = s.Sources
 	snap.LastError, snap.LastStopped = s.LastError, s.LastStopped
 	snap.LLMModel = s.LLMModel
+	snap.VisionModel = s.VisionModel
+	snap.ImageObservations = s.ImageObservations
 	snap.WorkspaceID = s.WorkspaceID
 	snap.PendingInput = s.PendingInput
 	snap.Running = s.Running
@@ -135,6 +139,8 @@ func Load(storage, id string, sk []*skills.Skill) (*agent.Session, error) {
 	s.StagedManifests = snap.StagedManifests
 	s.LastError, s.LastStopped = snap.LastError, snap.LastStopped
 	s.LLMModel = snap.LLMModel
+	s.VisionModel = snap.VisionModel
+	s.ImageObservations = snap.ImageObservations
 	s.WorkspaceID = snap.WorkspaceID
 	s.PendingInput = snap.PendingInput
 	if snap.Running {

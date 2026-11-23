@@ -101,6 +101,8 @@ type Session struct {
 	LastError        string
 	LastStopped      bool
 	LLMModel         string
+	VisionModel      string
+	ImageObservations map[string]string
 	WorkspaceID      string
 	PendingInput     *InputRequest
 	mu               sync.Mutex
@@ -140,6 +142,8 @@ type Compactor func(ctx context.Context, s *Session, emit func(Event)) error
 
 type Config struct {
 	LLM               *llm.Client
+	VisionLLM         *llm.Client
+	StorageDir        string
 	Executor          ToolExecutor
 	AllTools          map[string]contracts.ToolDefinition // worker tools by name
 	Skills            []*skills.Skill
@@ -205,6 +209,9 @@ func Run(ctx context.Context, cfg Config, s *Session, userText string, emit func
 		}
 		s.Turn = turn
 		emit(Event{Type: "turn_start", Timestamp: time.Now(), Turn: turn})
+		if turn == 1 && isCrossModelVision(cfg) {
+			_ = ensureImageObservations(ctx, cfg, s, userText, emit)
+		}
 
 		system := cfg.SystemFn(s)
 		if cfg.Hooks.PrepareRequest != nil {
@@ -313,32 +320,36 @@ func Run(ctx context.Context, cfg Config, s *Session, userText string, emit func
 		s.Messages = append(s.Messages, asst)
 		messageEmit(Event{Type: "message_completed", Timestamp: time.Now(), Phase: asst.Phase, CitationIDs: asst.CitationIDs})
 
-		for i, c := range calls {
-			if s.PendingInput != nil {
-				result := json.RawMessage(`{"status":"awaiting_user","note":"等待用户回答，本调用未执行"}`)
-				s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(result)})
-				continue
-			}
-			if i >= cfg.MaxToolsPer {
-				result := errResult("tool_budget", fmt.Sprintf("本轮最多执行 %d 个工具；此调用未执行。请先使用已完成结果，再按需分批调用。", cfg.MaxToolsPer))
-				s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(result)})
-				emit(Event{Type: "tool_execution_end", Timestamp: time.Now(), ToolCallID: c.ID, ToolName: c.Name, Result: result, IsError: true})
-				continue
-			}
-			if ctx.Err() != nil {
-				s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(errResult("stopped", "用户已停止执行"))})
-				continue
-			}
-			var presentation json.RawMessage
-			result, isErr := executeOne(ctx, cfg, s, c, func(event Event) {
-				if event.Type == "tool_execution_end" {
-					presentation = deliveryPresentation(event.Result)
+		if isParallelSafeBatch(calls, cfg.MaxToolsPer, s.PendingInput) {
+			executeParallelReadonlyBatch(ctx, cfg, s, calls, messageEmit, emit)
+		} else {
+			for i, c := range calls {
+				if s.PendingInput != nil {
+					result := json.RawMessage(`{"status":"awaiting_user","note":"等待用户回答，本调用未执行"}`)
+					s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(result)})
+					continue
 				}
-				messageEmit(event)
-			})
-			s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(result), ToolPresentation: presentation})
-			if isErr {
-				s.ToolErrors++
+				if i >= cfg.MaxToolsPer {
+					result := errResult("tool_budget", fmt.Sprintf("本轮最多执行 %d 个工具；此调用未执行。请先使用已完成结果，再按需分批调用。", cfg.MaxToolsPer))
+					s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(result)})
+					emit(Event{Type: "tool_execution_end", Timestamp: time.Now(), ToolCallID: c.ID, ToolName: c.Name, Result: result, IsError: true})
+					continue
+				}
+				if ctx.Err() != nil {
+					s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(errResult("stopped", "用户已停止执行"))})
+					continue
+				}
+				var presentation json.RawMessage
+				result, isErr := executeOne(ctx, cfg, s, c, func(event Event) {
+					if event.Type == "tool_execution_end" {
+						presentation = deliveryPresentation(event.Result)
+					}
+					messageEmit(event)
+				})
+				s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(result), ToolPresentation: presentation})
+				if isErr {
+					s.ToolErrors++
+				}
 			}
 		}
 		if ctx.Err() != nil {
@@ -401,10 +412,17 @@ func requestMessages(cfg Config, s *Session, system string, resuming bool) []llm
 	}
 	msgs = append(msgs, s.Messages...)
 	latest := llm.Message{Role: "user", Content: "<latest_context>\n内部参考：当前工作区协议、文件与产物状态。继续处理最近的用户请求，按对话表达规则组织回复。\n" + cfg.FileCtxFn(s) + publicProgressContext(s) + "\n</latest_context>"}
-	for _, manifest := range s.Manifests {
-		if manifest.Modality == "image" {
-			latest.Images = append(latest.Images, llm.ImageInput{Path: manifest.VisionPath, MediaType: manifest.MediaType, Name: manifest.OriginalName})
+	if !isCrossModelVision(cfg) {
+		var imgs []llm.ImageInput
+		for _, manifest := range s.Manifests {
+			if manifest.Modality == "image" && manifest.VisionPath != "" {
+				imgs = append(imgs, llm.ImageInput{Path: manifest.VisionPath, MediaType: manifest.MediaType, Name: manifest.OriginalName})
+			}
 		}
+		if len(imgs) > 4 {
+			imgs = imgs[len(imgs)-4:]
+		}
+		latest.Images = imgs
 	}
 	msgs = append(msgs, latest)
 	if resuming && len(s.Messages) > 0 && s.Messages[len(s.Messages)-1].Role == "assistant" {
@@ -470,6 +488,9 @@ func visibleToolSpecs(cfg Config, s *Session) []llm.ToolSpec {
 			json.RawMessage(`{"type":"object","properties":{"name":{"type":"string"},"reference":{"type":"string","description":"skill 内 references/ 下的引用路径，如 references/api.md；也支持省略目录的 api.md。路径必须留在该 references 目录内。不填时读取 SKILL.md 正文。"}},"required":["name"]}`)))
 	}
 	specs = append(specs, llm.NewToolSpec("request_user_input", "询问影响本次目标、结论或后续操作的关键疑问，包括数据缺项、分析范围、方法取舍和用户偏好。先使用已有信息与工具能查清的事实；常规步骤可自行决定，不重复询问或为普通知识问题弹窗。每次 1–3 个简短问题，实测参数用 number/text，分类偏好用 choice。调用后等待回答再继续。", json.RawMessage(inputRequestSchema)))
+	if cfg.VisionLLM != nil && cfg.VisionLLM.Model != "" {
+		specs = append(specs, inspectImageSpec())
+	}
 	sort.Slice(specs, func(i, j int) bool { return specs[i].Function.Name < specs[j].Function.Name })
 	return specs
 }
@@ -510,6 +531,8 @@ func executeOne(ctx context.Context, cfg Config, s *Session, c ToolCall, emit fu
 	}
 
 	switch c.Name {
+	case "inspect_image":
+		result, isErr = executeInspectImage(ctx, cfg, s, c.Args)
 	case "request_user_input":
 		request, err := newInputRequest(c.ID, c.Args)
 		if err != nil {
@@ -739,4 +762,117 @@ func streamTurn(ctx context.Context, c *llm.Client, msgs []llm.Message, tools []
 		return "", nil, usage, fmt.Errorf("模型结束了请求，但没有返回回答或工具调用，请重试")
 	}
 	return text.String(), calls, usage, nil
+}
+
+var parallelReadonlyTools = map[string]bool{
+	"search_knowledge": true,
+	"knowledge_graph":  true,
+	"read_document":    true,
+	"read_file":        true,
+	"read_artifact":    true,
+	"list_files":       true,
+	"list_models":      true,
+	"device_lookup":    true,
+}
+
+func isParallelSafeBatch(calls []ToolCall, maxTools int, pending *InputRequest) bool {
+	if pending != nil || len(calls) <= 1 || len(calls) > maxTools {
+		return false
+	}
+	for _, c := range calls {
+		if c.ArgumentsError != "" || !parallelReadonlyTools[c.Name] {
+			return false
+		}
+	}
+	return true
+}
+
+func executeParallelReadonlyBatch(ctx context.Context, cfg Config, s *Session, calls []ToolCall, messageEmit, rootEmit func(Event)) {
+	type outcome struct {
+		blocked bool
+		unknown bool
+		result  json.RawMessage
+		isErr   bool
+	}
+	outcomes := make([]outcome, len(calls))
+	var wg sync.WaitGroup
+
+	for i, c := range calls {
+		messageEmit(Event{Type: "tool_execution_start", Timestamp: time.Now(), ToolCallID: c.ID, ToolName: c.Name, Args: c.Args})
+		if cfg.Hooks.BeforeTool != nil {
+			if blocked, reason := cfg.Hooks.BeforeTool(ctx, s, c); blocked {
+				outcomes[i] = outcome{blocked: true, result: errResult("blocked", reason), isErr: true}
+				continue
+			}
+		}
+		if _, ok := cfg.AllTools[c.Name]; !ok || cfg.Executor == nil {
+			outcomes[i] = outcome{unknown: true, result: errResult("unknown_tool", "tool not visible or not registered: "+c.Name), isErr: true}
+			continue
+		}
+		args := withSession(c.Args, s.ID)
+		if s.WorkspaceID != "" {
+			var input map[string]json.RawMessage
+			if json.Unmarshal(args, &input) == nil && input != nil {
+				input["_workspace_id"], _ = json.Marshal(s.WorkspaceID)
+				args, _ = json.Marshal(input)
+			}
+		}
+		wg.Add(1)
+		go func(idx int, toolName string, toolArgs json.RawMessage) {
+			defer wg.Done()
+			body, err := cfg.Executor.Call(ctx, toolName, toolArgs)
+			if err != nil {
+				if len(body) > 0 && json.Valid(body) {
+					outcomes[idx] = outcome{result: body, isErr: true}
+				} else {
+					outcomes[idx] = outcome{result: errResult("worker_error", err.Error()), isErr: true}
+				}
+				return
+			}
+			outcomes[idx] = outcome{result: body, isErr: false}
+		}(i, c.Name, args)
+	}
+	wg.Wait()
+
+	for i, c := range calls {
+		out := outcomes[i]
+		result, isErr := out.result, out.isErr
+		if ctx.Err() != nil && !out.blocked && !out.unknown {
+			s.Messages = append(s.Messages, llm.Message{Role: "tool", ToolCallID: c.ID, Name: c.Name, Content: string(errResult("stopped", "用户已停止执行"))})
+			continue
+		}
+		presentation := result
+		if !out.blocked && cfg.Hooks.AfterTool != nil {
+			result, isErr = cfg.Hooks.AfterTool(ctx, s, c, result, isErr)
+		}
+		if isErr {
+			presentation = result
+			s.ToolErrors++
+		}
+		messageEmit(Event{Type: "tool_execution_end", Timestamp: time.Now(), ToolCallID: c.ID, ToolName: c.Name, Result: presentation, IsError: isErr})
+		if !isErr {
+			var art struct {
+				Artifact  json.RawMessage   `json:"artifact"`
+				Artifacts []json.RawMessage `json:"artifacts"`
+			}
+			if json.Unmarshal(presentation, &art) == nil {
+				if len(art.Artifact) > 2 {
+					messageEmit(Event{Type: "artifact_ready", Timestamp: time.Now(), ToolCallID: c.ID, ToolName: c.Name, Result: art.Artifact})
+				}
+				for _, a := range art.Artifacts {
+					if len(a) > 2 {
+						messageEmit(Event{Type: "artifact_ready", Timestamp: time.Now(), ToolCallID: c.ID, ToolName: c.Name, Result: a})
+					}
+				}
+			}
+		}
+		_ = rootEmit
+		s.Messages = append(s.Messages, llm.Message{
+			Role:             "tool",
+			ToolCallID:       c.ID,
+			Name:             c.Name,
+			Content:          string(result),
+			ToolPresentation: deliveryPresentation(presentation),
+		})
+	}
 }

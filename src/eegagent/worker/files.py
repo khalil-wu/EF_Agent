@@ -309,11 +309,18 @@ def edit_file(workspace_id: str, path: str, old_text: str, new_text: str, replac
     return {**_written_file(workspace, target, "edited"), "replacements": matches if replace_all else 1}
 
 
-def save_to_workspace(workspace_id: str, artifact_id: str, path: str, overwrite: bool = False) -> dict:
-    """Copy a registered artifact payload to the user's chosen workspace filename."""
+def save_to_workspace(workspace_id: str, artifact_id: str, path: str, overwrite: bool = False,
+                      format: str | None = None) -> dict:
+    """Copy a registered artifact payload (or selected format representation) to the workspace."""
     workspace, target = _workspace_target(workspace_id, path)
     artifact = load_artifact(artifact_id)
-    source = resolve_inside_storage(artifact["uri"])
+    uri = artifact["uri"]
+    if format:
+        rep = artifact.get("representations", {}).get(format.lower())
+        if not rep:
+            raise ValueError(f"产物 {artifact_id} 不包含 {format} 格式")
+        uri = rep["uri"]
+    source = resolve_inside_storage(uri)
     target.parent.mkdir(parents=True, exist_ok=True)
     if overwrite:
         shutil.copyfile(source, target)
